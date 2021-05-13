@@ -289,7 +289,8 @@ class Mesh(WorldObject):
                 continue
 
     def copy_planes(self, p_set: 'set[VertexGroup]') -> 'set[VertexGroup]':
-        new_planes = set()
+        side_planes = set()
+        cover_planes = set()
         pillars = dict()
         v_set = set()
 
@@ -303,7 +304,7 @@ class Mesh(WorldObject):
         for p in p_set:
             nvs = [pillars[v] for v in p]
             cap = self.make_plane(*nvs, p.get_normal())
-            new_planes.add(cap)
+            cover_planes.add(cap)
             for x in range(-1, 2):
                 ov = p[x]
                 op = pillars[ov]
@@ -311,8 +312,8 @@ class Mesh(WorldObject):
                 n_op = pillars[n_ov]
                 if is_inner_line(ov, n_ov, p_set):
                     continue
-                self.make_plane(ov, op, n_ov, ov - p[x - 1])
-                self.make_plane(n_ov, n_op, op, n_ov - p[x - 1])
+                side_planes.add(self.make_plane(ov, op, n_ov, ov - p[x - 1]))
+                side_planes.add(self.make_plane(n_ov, n_op, op, n_ov - p[x - 1]))
             '''    
             for idx, pair in enumerate(pairs):
                 n = idx + 1
@@ -328,11 +329,9 @@ class Mesh(WorldObject):
                 if not is_inner_line(pair[0], neighbour2[0], p_set):
                     self.make_plane(pair[0], pair[1], neighbour2[1], pair[0] - neighbour1[0])
             '''
-        return new_planes
+        return cover_planes, side_planes
 
     def draw(self):
-        glPolygonMode(*self.polygon_mode)
-
         glPolygonMode(*self.polygon_mode)
         '''
         face_points = dict()
@@ -456,11 +455,14 @@ class Mesh(WorldObject):
                 lines.append(plane)
                 continue
             for vertex in plane:
+                n = plane.get_normal()
+                n.normalize()
+                glNormal3f(n.x(), n.y(), n.z())
                 glVertex3f(vertex.x(), vertex.y(), vertex.z())
         glEnd()
 
 
-
+        #'''
         glBegin(GL_LINES)
         glColor3f(0, 0, 1)
         for plane in self.planes:
@@ -472,9 +474,10 @@ class Mesh(WorldObject):
             n = plane.get_normal()
             n.normalize()
             s += n
+            glColor3f(0, 0, 1)
             glVertex3f(s.x(), s.y(), s.z())
         glEnd()
-
+        #'''
 
 
         #glBegin(GL_LINES)

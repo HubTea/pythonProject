@@ -6,13 +6,13 @@ from OpenGL.GL import *
 from OpenGL.GLU import *
 
 from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtGui import QMouseEvent, QKeyEvent, QVector3D
+from PyQt5.QtGui import QMouseEvent, QKeyEvent, QVector3D, QCursor
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout
 from PyQt5.QtOpenGL import QGLWidget
 
 import numpy as np
 import mini3d
-from enum import Enum
+from enum import Enum, auto
 import time
 
 
@@ -22,6 +22,15 @@ class MainWindow(QMainWindow):
 
         self.glWidget = GLWidget()
         self.setCentralWidget(self.glWidget)
+
+    def set_control_mode(self, mode: 'ControlMode'):
+        m = self.glWidget.widget_state.control_mode
+        if m is not mode:
+            self.glWidget.widget_state.control_mode = mode
+            p = self.glWidget.mapFromGlobal(QCursor.pos())
+            self.glWidget.mouse_snapshot = (p.x(), p.y())
+        else:
+            self.glWidget.widget_state.control_mode = ControlMode.DO_NOT_ANYTHING
 
     def keyPressEvent(self, e: QKeyEvent) -> None:
         k = e.key()
@@ -70,13 +79,30 @@ class MainWindow(QMainWindow):
         elif k == Qt.Key_6:
             self.glWidget.widget_state.select_cascade = CascadeMode.DIFFERENCE
         elif k == Qt.Key_7:
-            pass
+            if self.glWidget.widget_state.axis[0]:
+                self.glWidget.widget_state.axis[0] = 0
+            else:
+                self.glWidget.widget_state.axis[0] = 1
         elif k == Qt.Key_8:
-            pass
+            if self.glWidget.widget_state.axis[1]:
+                self.glWidget.widget_state.axis[1] = 0
+            else:
+                self.glWidget.widget_state.axis[1] = 1
         elif k == Qt.Key_9:
-            pass
+            if self.glWidget.widget_state.axis[2]:
+                self.glWidget.widget_state.axis[2] = 0
+            else:
+                self.glWidget.widget_state.axis[2] = 1
         elif k == Qt.Key_0:
-            pass
+            s = set(self.glWidget.selected_planes)
+            cv, sd = self.glWidget.modeler.copy_planes(s)
+            self.glWidget.selected_planes = cv
+        elif k == Qt.Key_Z:
+            self.set_control_mode(ControlMode.TRANSLATION)
+        elif k == Qt.Key_X:
+            self.set_control_mode(ControlMode.ROTATION)
+        elif k == Qt.Key_C:
+            self.set_control_mode(ControlMode.SCALING)
         self.glWidget.repaint()
 
 
@@ -102,10 +128,20 @@ class CascadeMode(Enum):
     DIFFERENCE = 2
 
 
+class ControlMode(Enum):
+    DO_NOT_ANYTHING = auto()
+    TRANSLATION = auto()
+    ROTATION = auto()
+    SCALING = auto()
+
+
 class ProgramMode:
     def __init__(self):
         self.select_mode = SelectionMode.DO_NOT_SELECT
         self.select_cascade = CascadeMode.DO_NOT_CASCADE
+
+        self.control_mode = ControlMode.DO_NOT_ANYTHING
+        self.axis = [1, 0, 0]
         pass
 
 
@@ -114,20 +150,19 @@ class GLWidget(QGLWidget):
         super(GLWidget, self).__init__(parent)
 
         self.size = QSize(1000, 1000)
-        self.mouseTrack = False
-        self.rot_x = self.rot_y = self.rot_z = 0
+        self.setMouseTracking(True)
+
         self.vertex = []
-        self.mouse_prev_pos = 0
 
         self.widget_state = ProgramMode()
-        #self.selected_vertices = dict()
         self.selected_planes = set()
+        self.mouse_snapshot = None
 
         self.cam = mini3d.Camera(0, 0, 3)
         self.cam.rotate_up_axis(180)
 
         self.modeler = mini3d.Mesh()
-        self.modeler.polygon_mode = (GL_FRONT_AND_BACK, GL_LINE)
+        self.modeler.polygon_mode = (GL_FRONT_AND_BACK, GL_FILL)
         m = self.modeler
 
         v1 = m.append_vertex(0, 0, 0)
@@ -135,19 +170,19 @@ class GLWidget(QGLWidget):
         v3 = m.append_vertex(0.5, 0.5, 0)
         v4 = m.append_vertex(0, 0.5, 0)
         v5 = m.append_vertex(0.25, 0.25, 0)
+        m.make_plane(v1, v2, v5, QVector3D(0, 0, 1))
+        m.make_plane(v2, v3, v5, QVector3D(0, 0, 1))
+        m.make_plane(v3, v4, v5, QVector3D(0, 0, 1))
+        m.make_plane(v4, v1, v5, QVector3D(0, 0, 1))
         '''
         v6 = m.append_vertex(0, 0, -1)
         v7 = m.append_vertex(0.5, 0, -1)
         v8 = m.append_vertex(0.5, 0.5, -1)
         v9 = m.append_vertex(0, 0.5, -1)
         v10 = m.append_vertex(0.25, 0.25, -1)
-        '''
 
-        m.make_plane(v1, v2, v5)
-        m.make_plane(v2, v3, v5)
-        m.make_plane(v3, v4, v5)
-        m.make_plane(v4, v1, v5)
-        '''
+        
+
         m.make_plane(v6, v7, v10)
         m.make_plane(v7, v8, v10)
         m.make_plane(v8, v9, v10)
@@ -163,8 +198,8 @@ class GLWidget(QGLWidget):
         m.make_plane(v9, v6, v1)
         '''
 
-        copy_p = self.modeler.copy_planes(set(self.modeler.planes))
-        for p in copy_p:
+        cv, sd = self.modeler.copy_planes(set(self.modeler.planes))
+        for p in cv:
             for v in p:
                 v.setZ(-1)
         for p in self.modeler.planes:
@@ -192,12 +227,15 @@ class GLWidget(QGLWidget):
         glClearColor(0, 0, 0, 0)
         glEnable(GL_DEPTH_TEST)
 
-        #glEnable(GL_CULL_FACE)
-        #glFrontFace(GL_CCW)
+        glEnable(GL_CULL_FACE)
+        glFrontFace(GL_CCW)
 
         glShadeModel(GL_FLAT)
 
+        glEnable(GL_LIGHTING)
+        glEnable(GL_LIGHT0)
 
+        glLightModelfv(GL_LIGHT_MODEL_AMBIENT, [1, 1, 1, 1])
         # self._createVertexBuffer()
 
     def paintGL(self):
@@ -214,23 +252,12 @@ class GLWidget(QGLWidget):
 
     def _draw(self):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
         self.cam.update_view()
 
         glMatrixMode(GL_MODELVIEW)
-        #glMatrixMode(GL_PROJECTION)
-        #glLoadIdentity()
-        #glOrtho(-1, 1, -1, 1, -100, 100)
-        # glFrustum(-1.0, 1.0, -1.0, 1.0, 0.1, 1)
-
-        #glMatrixMode(GL_MODELVIEW)
-        #glLoadIdentity()
-        # gluLookAt(1, 1, 10, 0, 0, 0, 1, 0, 0)
-        #glRotate(self.rot_x, 1, 0, 0)
-        #glRotate(self.rot_y, 0, 1, 0)
-        #glRotate(self.rot_z, 0, 0, 1)
 
         self.modeler.draw()
-
 
         pos = self.modeler.pos
         up = pos + 0.1 * self.modeler.up
@@ -248,6 +275,8 @@ class GLWidget(QGLWidget):
         glVertex3f(direction.x(), direction.y(), direction.z())
         glEnd()
 
+        glLightfv(GL_LIGHT0, GL_POSITION, [10, 10, 10, 1])
+
         glPointSize(20)
         glBegin(GL_POINTS)
         p = QVector3D(self.cam.pos)
@@ -255,8 +284,6 @@ class GLWidget(QGLWidget):
 
         glColor3f(0, 1, 1)
         glVertex3f(p.x(), p.y(), p.z())
-
-
 
         for p in self.selected_planes:
             avg = QVector3D(0, 0, 0)
@@ -268,7 +295,6 @@ class GLWidget(QGLWidget):
             glColor3f(0, 0, 1)
             glVertex3f(avg.x(), avg.y(), avg.z())
         glEnd()
-
 
         #self.grid.draw()
         glBegin(GL_LINES)
@@ -283,9 +309,6 @@ class GLWidget(QGLWidget):
         glVertex3f(0, 0, 1000)
         glEnd()
 
-
-
-
         glPointSize(10)
         glBegin(GL_POINTS)
         glColor3f(1, 1, 1)
@@ -293,15 +316,56 @@ class GLWidget(QGLWidget):
             for x in range(0, 10):
                 x = x / 10
                 glVertex3f(coeff[0] * x, coeff[1] * x, coeff[2] * x)
-
-        glVertex3f(0, 0, 0)
-        for v in self.vertex:
-            glVertex3fv(v)
         glEnd()
         glFlush()
 
+    def select_plane(self, mouse_x, mouse_y):
+        if self.widget_state.select_mode is SelectionMode.DO_NOT_SELECT:
+            return
+        start = gluUnProject(mouse_x, self.height() - mouse_y, 0)
+        end = gluUnProject(mouse_x, self.height() - mouse_y, 1)
+
+        generator = self.modeler.collision_with_ray(mini3d.MeshVertex(*start), mini3d.MeshVertex(*end))
+
+        plane_to_camera = 999999999
+        selected_plane = None
+        for plane, collision_point in generator:
+            depth = self.cam.pos.distanceToPoint(collision_point)
+            if depth < plane_to_camera:
+                plane_to_camera = depth
+                selected_plane = plane
+        if selected_plane is not None:
+            if self.widget_state.select_cascade is CascadeMode.DO_NOT_CASCADE:
+                self.selected_planes.clear()
+                self.selected_planes.add(selected_plane)
+            elif self.widget_state.select_cascade is CascadeMode.UNION:
+                self.selected_planes.add(selected_plane)
+            elif self.widget_state.select_cascade is CascadeMode.DIFFERENCE:
+                if selected_plane in self.selected_planes:
+                    self.selected_planes.remove(selected_plane)
+
+    def transform_mesh(self, arg: 'float'):
+        m = self.widget_state.control_mode
+        if m is ControlMode.DO_NOT_ANYTHING:
+            return
+        v_set = set()
+        for p in self.selected_planes:
+            for v in p:
+                v_set.add(v)
+        if m is ControlMode.TRANSLATION:
+            delta = arg * QVector3D(*self.widget_state.axis)
+            for v in v_set:
+                v += delta
+            for p in self.modeler.planes:
+                p.correct_normal()
+        elif m is ControlMode.SCALING:
+            pass
+        elif m is ControlMode.ROTATION:
+            pass
+        self.repaint()
+        return
+
     def mousePressEvent(self, e: QMouseEvent) -> None:
-        self.mouse_prev_pos = (e.x(), e.y())
         print("m press : ", e.x(), e.y())
 
         if e.button() == Qt.RightButton:
@@ -315,76 +379,34 @@ class GLWidget(QGLWidget):
             if collision is not None:
                 vertex = self.modeler.append_vertex(collision.x(), collision.y(), collision.z())
                 self.modeler.make_plane_with_latest(-self.cam.direction)
-
-
-
         self.repaint()
-        # for v in self.vertex:
-        #    print(v)
         return
 
     def mouseReleaseEvent(self, e: QMouseEvent) -> None:
-        x = e.x()
-        y = e.y()
+        mx = e.x()
+        my = e.y()
         if e.button() == Qt.LeftButton:
-            if self.widget_state.select_mode is SelectionMode.DO_NOT_SELECT:
-                return
-            start = gluUnProject(e.x(), self.height() - e.y(), 0)
-            end = gluUnProject(e.x(), self.height() - e.y(), 1)
-            generator = self.modeler.collision_with_ray(mini3d.MeshVertex(*start), mini3d.MeshVertex(*end))
-
-            plane_to_camera = 999999999
-            #selected_list = set()
-            selected_plane = None
-            for plane, collision_point in generator:
-                depth = self.cam.pos.distanceToPoint(collision_point)
-                if depth < plane_to_camera:
-                    plane_to_camera = depth
-                    selected_plane = plane
-            if selected_plane is not None:
-                #if self.widget_state.select_mode is SelectionMode.VERTEX:
-                #    selected_list.add(selected_plane.nearest_vertex(collision_point))
-                #elif self.widget_state.select_mode is SelectionMode.LINE:
-                #    selected_list = set(selected_plane.nearest_line(collision_point))
-                #elif self.widget_state.select_mode is SelectionMode.PLANE:
-                #    selected_list = set(selected_plane.group[0:])
-
-                if self.widget_state.select_cascade is CascadeMode.DO_NOT_CASCADE:
-                    self.selected_planes.clear()
-                    self.selected_planes.add(selected_plane)
-                elif self.widget_state.select_cascade is CascadeMode.UNION:
-                    self.selected_planes.add(selected_plane)
-                elif self.widget_state.select_cascade is CascadeMode.DIFFERENCE:
-                    if selected_plane in self.selected_planes:
-                        self.selected_planes.remove(selected_plane)
-
-            self.repaint()
-
-    def mouseMoveEvent(self, e: QMouseEvent) -> None:
-        x = e.x()
-        y = e.y()
-
-        if self.mouse_prev_pos == 0:
-            self.mouse_prev_pos = (x, y)
-            return
-
-        dx = x - self.mouse_prev_pos[0]
-        dy = y - self.mouse_prev_pos[1]
-        buttons = e.buttons()
-        if buttons & Qt.LeftButton:
-            self.rot_y = self.rot_y + dx
-            self.rot_x = self.rot_x + dy
-        elif buttons & Qt.MidButton:
-            print('z')
-            self.rot_z = self.rot_z + abs(dx) + abs(dy)
-
-        print("m move : ", x, y, dx, dy)
-        self.mouse_prev_pos = (x, y)
+            self.select_plane(mx, my)
         self.repaint()
 
+    def mouseMoveEvent(self, e: QMouseEvent) -> None:
+        mx = e.x()
+        my = e.y()
+
+        cx = self.width() / 2
+        cy = self.height() / 2
+        if self.mouse_snapshot is not None:
+            px = self.mouse_snapshot[0]
+            py = self.mouse_snapshot[1]
+
+            dp = np.sqrt((px - cx) ** 2 + (py - cy) ** 2)
+            dm = np.sqrt((mx - cx) ** 2 + (my - cy) ** 2)
+            print('m', mx, my)
+            print('p', px, py)
+            print('c', cx, cy)
+            self.transform_mesh(0.1 * (dm - dp))
+            self.mouse_snapshot = (mx, my)
         return
-
-
 
 
 def main():
