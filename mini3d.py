@@ -213,7 +213,7 @@ class Mesh(WorldObject):
         self.vertices = []
         self.planes = []
         self.collision_check = True
-        self.catmull_clark = 1
+        self.catmull_clark = 0
         self.polygon_mode = (GL_FRONT_AND_BACK, GL_FILL)
         return
 
@@ -290,17 +290,30 @@ class Mesh(WorldObject):
 
     def copy_planes(self, p_set: 'set[VertexGroup]') -> 'set[VertexGroup]':
         new_planes = set()
-        pillars = []
-        for p in p_set:
-            pairs = []
-            for v in p:
-                new_v = self.append_vertex(v.x(), v.y(), v.z())
-                pairs.append((v, new_v))
-            pillars.append(pairs)
-            new_p = self.make_plane_with_latest(p.get_normal())
-            new_planes.add(new_p)
+        pillars = dict()
+        v_set = set()
 
-        for pairs in pillars:
+        for p in p_set:
+            for v in p:
+                pillars[v] = None
+
+        for v in pillars:
+            pillars[v] = self.append_vertex(v.x(), v.y(), v.z())
+
+        for p in p_set:
+            nvs = [pillars[v] for v in p]
+            cap = self.make_plane(*nvs, p.get_normal())
+            new_planes.add(cap)
+            for x in range(-1, 2):
+                ov = p[x]
+                op = pillars[ov]
+                n_ov = p[x + 1]
+                n_op = pillars[n_ov]
+                if is_inner_line(ov, n_ov, p_set):
+                    continue
+                self.make_plane(ov, op, n_ov, ov - p[x - 1])
+                self.make_plane(n_ov, n_op, op, n_ov - p[x - 1])
+            '''    
             for idx, pair in enumerate(pairs):
                 n = idx + 1
                 if n >= len(pairs):
@@ -314,23 +327,23 @@ class Mesh(WorldObject):
 
                 if not is_inner_line(pair[0], neighbour2[0], p_set):
                     self.make_plane(pair[0], pair[1], neighbour2[1], pair[0] - neighbour1[0])
-
+            '''
         return new_planes
 
     def draw(self):
         glPolygonMode(*self.polygon_mode)
 
         glPolygonMode(*self.polygon_mode)
-
+        '''
         face_points = dict()
         for p in self.planes:
             f = QVector3D(0, 0, 0)
             for v in p:
                 f += v
             face_points[p] = f / len(p)
-
+        
         '''
-        코드 수정 필요
+        #코드 수정 필요
         '''
         new_points = dict()
         edge_points = dict()
@@ -340,9 +353,27 @@ class Mesh(WorldObject):
             face_avg = QVector3D(0, 0, 0)
             n = len(v.adjacent_plane)
             checklist = set()
+            ops = dict()
             for p in v.adjacent_plane:
                 face_avg += face_points[p]
-                ops = p.opposite(v)
+                op = p.opposite(v)
+                for op_v in op:
+                    if op_v in ops:
+                        ops[op_v].add(p)
+                    else:
+                        ops[op_v] = set([p])
+            face_avg /= len(v.adjacent_plane)
+
+            for op_v in ops:
+                s = v + op_v
+                for p in ops[op_v]:
+                    s += face_points[p]
+                s /= 2 + len(ops[op_v])
+                edge_points[(v, op_v)] = s
+                edge_points[(op_v, v)] = s
+                edge_avg += s
+            edge_avg /= len(ops)
+            
                 for v_op in ops:
                     if (v, v_op) in edge_points:
                         if v_op not in checklist:
@@ -358,7 +389,11 @@ class Mesh(WorldObject):
                             if v_op not in checklist:
                                 checklist.add(v_op)
                                 edge_avg += ep
-            new_points[v] = (face_avg / 3 + 2 * edge_avg / len(checklist) + (n - 3) * v) / n
+            
+            if n < 3:
+                n = 3
+            new_points[v] = (face_avg + 2 * edge_avg + (n - 3) * v) / n
+            
         #for i, p1 in enumerate(self.planes):
         #    for p2 in self.planes[i + 1:]:
         #        for x in range(-1, 3):
@@ -384,6 +419,13 @@ class Mesh(WorldObject):
         glBegin(GL_TRIANGLES)
         for v in self.vertices:
             for p1 in v.adjacent_plane:
+                ops = p1.opposite(v)
+                ep1 = edge_points[(v, ops[0])]
+                ep2 = edge_points[(v, ops[1])]
+                nv = new_points[v]
+                for point in [nv, ep1, ep2]:
+                    glVertex3f(point.x(), point.y(), point.z())
+                
                 for p2 in v.adjacent_plane:
                     inner = get_inner_line(p1, p2)
                     if inner is None:
@@ -394,8 +436,17 @@ class Mesh(WorldObject):
                     fp2 = face_points[p2]
                     for point in [nv, mid, fp1, nv, mid, fp2]:
                         glVertex3f(point.x(), point.y(), point.z())
-        glEnd()
+                
+        for p in self.planes:
+            fp = face_points[p]
+            for x in range(-2, 1):
+                ep1 = edge_points[(p[x], p[x+1])]
+                ep2 = edge_points[(p[x+1], p[x+2])]
+                for point in [fp, ep1, ep2]:
+                    glVertex3f(point.x(), point.y(), point.z())
 
+        glEnd()
+        '''
 
         lines = []
         glBegin(GL_TRIANGLES)
@@ -408,7 +459,8 @@ class Mesh(WorldObject):
                 glVertex3f(vertex.x(), vertex.y(), vertex.z())
         glEnd()
 
-        '''
+
+
         glBegin(GL_LINES)
         glColor3f(0, 0, 1)
         for plane in self.planes:
@@ -422,7 +474,7 @@ class Mesh(WorldObject):
             s += n
             glVertex3f(s.x(), s.y(), s.z())
         glEnd()
-        '''
+
 
 
         #glBegin(GL_LINES)
@@ -464,7 +516,7 @@ class Camera(WorldObject):
             gluPerspective(self.angle, self.ratio, self.near, self.far)
         else:
             width = self.ratio * self.height
-            glOrtho(-width / 2, width / 2, -self.height, self.height, -self.near, -self.far)
+            glOrtho(-width, width, -self.height, self.height, -self.near, self.far)
 
     def set_screen_ratio(self, x, y):
         self.ratio = x / y

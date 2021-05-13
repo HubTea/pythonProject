@@ -34,29 +34,29 @@ class MainWindow(QMainWindow):
         elif k == Qt.Key_Down:
             self.glWidget.cam.move(0, -0.1, 0)
         elif k == Qt.Key_Q:
-            self.glWidget.cam.rotate_direction_axis(1)
+            self.glWidget.cam.rotate_direction_axis(3)
         elif k == Qt.Key_E:
-            self.glWidget.cam.rotate_direction_axis(-1)
+            self.glWidget.cam.rotate_direction_axis(-3)
         elif k == Qt.Key_W:
-            self.glWidget.cam.rotate_left_axis(1)
+            self.glWidget.cam.rotate_left_axis(3)
         elif k == Qt.Key_S:
-            self.glWidget.cam.rotate_left_axis(-1)
+            self.glWidget.cam.rotate_left_axis(-3)
         elif k == Qt.Key_A:
-            self.glWidget.cam.rotate_up_axis(-1)
+            self.glWidget.cam.rotate_up_axis(-3)
         elif k == Qt.Key_D:
-            self.glWidget.cam.rotate_up_axis(1)
+            self.glWidget.cam.rotate_up_axis(3)
         elif k == Qt.Key_R:
             self.glWidget.cam.zoom()
         elif k == Qt.Key_F:
             self.glWidget.cam.zoom(False)
         elif k == Qt.Key_T:
-            self.glWidget.cam.rev_left_axis(1)
+            self.glWidget.cam.rev_left_axis(3)
         elif k == Qt.Key_G:
-            self.glWidget.cam.rev_left_axis(-1)
+            self.glWidget.cam.rev_left_axis(-3)
         elif k == Qt.Key_Y:
-            self.glWidget.cam.rev_up_axis(1)
+            self.glWidget.cam.rev_up_axis(3)
         elif k == Qt.Key_H:
-            self.glWidget.cam.rev_up_axis(-1)
+            self.glWidget.cam.rev_up_axis(-3)
         elif k == Qt.Key_1:
             self.glWidget.selected_planes.clear()
         elif k == Qt.Key_2:
@@ -128,23 +128,48 @@ class GLWidget(QGLWidget):
 
         self.modeler = mini3d.Mesh()
         self.modeler.polygon_mode = (GL_FRONT_AND_BACK, GL_LINE)
-        self.v1 = self.modeler.append_vertex(0, 0, 0)
-        self.v2 = self.modeler.append_vertex(0.5, 0, 0)
-        self.v3 = self.modeler.append_vertex(0.5, 0.5, 0)
-        self.v4 = self.modeler.append_vertex(0, 0.5, 0)
-        new_p = self.modeler.make_plane(self.v1, self.v2, self.v3)
-        new_p2 = self.modeler.make_plane(self.v1, self.v3, self.v4)
+        m = self.modeler
 
-        self.selected_planes.add(new_p)
-        self.selected_planes.add(new_p2)
-        copy_p = self.modeler.copy_planes(self.selected_planes)
-        self.selected_planes = copy_p
-        for p in self.selected_planes:
+        v1 = m.append_vertex(0, 0, 0)
+        v2 = m.append_vertex(0.5, 0, 0)
+        v3 = m.append_vertex(0.5, 0.5, 0)
+        v4 = m.append_vertex(0, 0.5, 0)
+        v5 = m.append_vertex(0.25, 0.25, 0)
+        '''
+        v6 = m.append_vertex(0, 0, -1)
+        v7 = m.append_vertex(0.5, 0, -1)
+        v8 = m.append_vertex(0.5, 0.5, -1)
+        v9 = m.append_vertex(0, 0.5, -1)
+        v10 = m.append_vertex(0.25, 0.25, -1)
+        '''
+
+        m.make_plane(v1, v2, v5)
+        m.make_plane(v2, v3, v5)
+        m.make_plane(v3, v4, v5)
+        m.make_plane(v4, v1, v5)
+        '''
+        m.make_plane(v6, v7, v10)
+        m.make_plane(v7, v8, v10)
+        m.make_plane(v8, v9, v10)
+        m.make_plane(v9, v6, v10)
+
+        m.make_plane(v1, v2, v6)
+        m.make_plane(v6, v7, v2)
+        m.make_plane(v2, v3, v7)
+        m.make_plane(v7, v8, v3)
+        m.make_plane(v3, v4, v8)
+        m.make_plane(v8, v9, v4)
+        m.make_plane(v4, v1, v9)
+        m.make_plane(v9, v6, v1)
+        '''
+
+        copy_p = self.modeler.copy_planes(set(self.modeler.planes))
+        for p in copy_p:
             for v in p:
                 v.setZ(-1)
         for p in self.modeler.planes:
             p.correct_normal()
-        self.selected_planes.clear()
+
 
         self.grid = mini3d.Mesh()
         self.grid.polygon_mode = (GL_FRONT_AND_BACK, GL_LINE)
