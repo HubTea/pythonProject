@@ -3,11 +3,9 @@ QVector를 numpy array로 교체
 Mesh에 선분 데이터 추가로 저장
 VertexGroup 노멀벡터가 최신인지 표시하는 플래그 추가 및 정점 좌표 변경시 업데이트 되도록 수정
 추가적인 충돌체크 함수 제작, Mesh.collision_with_ray의 충돌체크 코드 함수로 따로 제작
+
+vertexgroup copy method 제작
 '''
-
-
-
-
 
 from PyQt5.QtGui import QMatrix4x4
 from PyQt5.QtGui import QVector3D
@@ -74,6 +72,78 @@ def get_inner_line(p1: 'VertexGroup', p2: 'VertexGroup') -> 'tuple[MeshVertex, M
         return tuple(intersection)
 
 
+def catmull_clark(mesh: 'Mesh') -> 'Mesh':
+    if mesh.catmull_clark_level >= 3:
+        return mesh
+    new_mesh = Mesh()
+    new_mesh.catmull_clark_level = mesh.catmull_clark_level + 1
+
+    face_points = dict()
+    for mesh_plane in mesh.planes:
+        f = QVector3D(0, 0, 0)
+        for mesh_vertex in mesh_plane:
+            f += mesh_vertex
+        f /= len(mesh_plane)
+        face_points[mesh_plane] = new_mesh.append_vertex(f.x(), f.y(), f.z())
+
+    new_points = dict()
+    edge_points = dict()
+    for mesh_vertex in mesh.vertices:
+        edge_avg = QVector3D(0, 0, 0)  # average point of adjacent edges with mesh_vertex
+        face_avg = QVector3D(0, 0, 0)  # average point of adjacent planes with mesh_vertex
+        n = len(mesh_vertex.adjacent_plane)
+        opposites = dict()  # key : opposite vertex, value : set of adjacent planes with the edge
+        for mesh_plane in mesh_vertex.adjacent_plane:
+            face_avg += face_points[mesh_plane]
+            op = mesh_plane.opposite(mesh_vertex)
+            for op_v in op:
+                if op_v in opposites:
+                    opposites[op_v].add(mesh_plane)
+                else:
+                    opposites[op_v] = set([mesh_plane])
+        face_avg /= len(mesh_vertex.adjacent_plane)
+
+        for op_v in opposites:
+            if (mesh_vertex, op_v) in edge_points:
+                s = edge_points[(mesh_vertex, op_v)]
+                edge_avg += s
+                continue
+            else:
+                s = mesh_vertex + op_v
+                for mesh_plane in opposites[op_v]:
+                    s += face_points[mesh_plane]
+                s /= 2 + len(opposites[op_v])
+            edge_avg += s
+
+            nv = new_mesh.append_vertex(s.x(), s.y(), s.z())
+            edge_points[(mesh_vertex, op_v)] = nv
+            edge_points[(op_v, mesh_vertex)] = nv
+
+        edge_avg /= len(opposites)
+
+        if n >= 3:
+            nv = (face_avg + 2 * edge_avg + (n - 3) * mesh_vertex) / n
+        elif n > 0:
+            nv = (face_avg + edge_avg + mesh_vertex) / 3
+        else:
+            nv = mesh_vertex
+        new_points[mesh_vertex] = new_mesh.append_vertex(nv.x(), nv.y(), nv.z())
+
+    for mesh_plane in mesh.planes:
+        f = face_points[mesh_plane]
+        for mesh_vertex in mesh_plane:
+            op = mesh_plane.opposite(mesh_vertex)
+
+            v1 = new_points[mesh_vertex]
+            e1 = edge_points[(mesh_vertex, op[0])]
+            e2 = edge_points[(mesh_vertex, op[1])]
+
+            for v in (v1, f):
+                new_plane = new_mesh.make_plane(v, e1, e2, mesh_plane.get_normal())
+                new_plane.copy_attr_of(mesh_plane)
+    return new_mesh
+
+
 class WorldObject:
     def __init__(self, object_name="object", x=0, y=0, z=0):
         self.pos = QVector3D(x, y, z)
@@ -111,6 +181,7 @@ class VertexGroup:
     TRIANGLE = 3
 
     def __init__(self, v1, v2, v3=None):
+        self.color = (255, 255, 255)
         if v3 is None:
             self.group = (v1, v2)
             self.type = VertexGroup.LINE
@@ -158,6 +229,10 @@ class VertexGroup:
         if self.type == VertexGroup.TRIANGLE:
             self.group = (self.group[0], self.group[2], self.group[1])
 
+    def inverse_direction(self):
+        if self.type == VertexGroup.TRIANGLE:
+            self.direction = -self.direction
+
     def get_normal(self):
         return cross_product(self.group[1] - self.group[0], self.group[2] - self.group[0])
 
@@ -168,6 +243,18 @@ class VertexGroup:
         normal = self.get_normal()
         if inner_product(normal, self.direction) < 0:
             self.inverse_normal()
+
+    def correct_direction(self):
+        self.set_direction(self.get_normal())
+
+    def copy_attr_of(self, plane: 'VertexGroup'):
+        """
+        copy some attributes of plane like color. not group
+        :param plane: original
+        :return: None
+        """
+        self.color = plane.color
+        pass
 
     def __iter__(self):
         return self.group.__iter__()
@@ -197,7 +284,7 @@ class MeshVertex(QVector3D):
         self.adjacent_plane.append(plane)
 
     def pop_plane(self, plane):
-        for (i, p) in self.adjacent_plane:
+        for (i, p) in enumerate(self.adjacent_plane):
             if p is plane:
                 self.adjacent_plane[i], self.adjacent_plane[-1] = self.adjacent_plane[-1], self.adjacent_plane[i]
                 self.adjacent_plane.pop()
@@ -213,7 +300,7 @@ class Mesh(WorldObject):
         self.vertices = []
         self.planes = []
         self.collision_check = True
-        self.catmull_clark = 0
+        self.catmull_clark_level = 0
         self.polygon_mode = (GL_FRONT_AND_BACK, GL_FILL)
         return
 
@@ -235,7 +322,15 @@ class Mesh(WorldObject):
                     idx = self.planes.index(plane)
                     self.planes[idx], self.planes[-1] = self.planes[-1], self.planes[idx]
                     self.planes.pop()
-                return
+
+    def delete_plane(self, plane):
+        for (i, p) in enumerate(self.planes):
+            if p is plane:
+                self.planes[i], self.planes[-1] = self.planes[-1], self.planes[i]
+                self.planes.pop()
+
+                for v in plane:
+                    v.pop_plane(plane)
 
     def make_plane(self, v1, v2, v3=None, direction=None) -> VertexGroup:
         plane = VertexGroup(v1, v2, v3)
@@ -274,9 +369,9 @@ class Mesh(WorldObject):
             p0_to_start = start - plane[0]
 
             matrix_a = np.array([
-                    [edge1[0], edge2[0], -ray[0]],
-                    [edge1[1], edge2[1], -ray[1]],
-                    [edge1[2], edge2[2], -ray[2]]])
+                [edge1[0], edge2[0], -ray[0]],
+                [edge1[1], edge2[1], -ray[1]],
+                [edge1[2], edge2[2], -ray[2]]])
             matrix_b = np.array([[p0_to_start[0]], [p0_to_start[1]], [p0_to_start[2]]])
             try:
                 (u, v, t) = np.linalg.solve(matrix_a, matrix_b)
@@ -304,6 +399,7 @@ class Mesh(WorldObject):
         for p in p_set:
             nvs = [pillars[v] for v in p]
             cap = self.make_plane(*nvs, p.get_normal())
+            cap.copy_attr_of(p)
             cover_planes.add(cap)
             for x in range(-1, 2):
                 ov = p[x]
@@ -312,141 +408,16 @@ class Mesh(WorldObject):
                 n_op = pillars[n_ov]
                 if is_inner_line(ov, n_ov, p_set):
                     continue
-                side_planes.add(self.make_plane(ov, op, n_ov, ov - p[x - 1]))
-                side_planes.add(self.make_plane(n_ov, n_op, op, n_ov - p[x - 1]))
-            '''    
-            for idx, pair in enumerate(pairs):
-                n = idx + 1
-                if n >= len(pairs):
-                    n = 0
-                neighbour1 = pairs[n]
-
-                n = idx - 1
-                neighbour2 = pairs[n]
-                if not is_inner_line(pair[0], neighbour1[0], p_set):
-                    self.make_plane(pair[0], pair[1], neighbour1[0], pair[0] - neighbour2[0])
-
-                if not is_inner_line(pair[0], neighbour2[0], p_set):
-                    self.make_plane(pair[0], pair[1], neighbour2[1], pair[0] - neighbour1[0])
-            '''
+                for vertices in [[ov, op, n_ov], [n_ov, n_op, op]]:
+                    new_plane = self.make_plane(vertices[0], vertices[1], vertices[2], vertices[0] - p[x - 1])
+                    new_plane.copy_attr_of(p)
+                    side_planes.add(new_plane)
         return cover_planes, side_planes
 
     def draw(self):
         glPolygonMode(*self.polygon_mode)
-        '''
-        face_points = dict()
-        for p in self.planes:
-            f = QVector3D(0, 0, 0)
-            for v in p:
-                f += v
-            face_points[p] = f / len(p)
-        
-        '''
-        #코드 수정 필요
-        '''
-        new_points = dict()
-        edge_points = dict()
 
-        for v in self.vertices:
-            edge_avg = QVector3D(0, 0, 0)
-            face_avg = QVector3D(0, 0, 0)
-            n = len(v.adjacent_plane)
-            checklist = set()
-            ops = dict()
-            for p in v.adjacent_plane:
-                face_avg += face_points[p]
-                op = p.opposite(v)
-                for op_v in op:
-                    if op_v in ops:
-                        ops[op_v].add(p)
-                    else:
-                        ops[op_v] = set([p])
-            face_avg /= len(v.adjacent_plane)
-
-            for op_v in ops:
-                s = v + op_v
-                for p in ops[op_v]:
-                    s += face_points[p]
-                s /= 2 + len(ops[op_v])
-                edge_points[(v, op_v)] = s
-                edge_points[(op_v, v)] = s
-                edge_avg += s
-            edge_avg /= len(ops)
-            
-                for v_op in ops:
-                    if (v, v_op) in edge_points:
-                        if v_op not in checklist:
-                            checklist.add(v_op)
-                            edge_avg += edge_points[(v, v_op)]
-                    for p2 in v.adjacent_plane:
-                        if v in p2 and v_op in p2 and p2 is not p:
-                            a = face_points[p]
-                            b = face_points[p2]
-                            ep = (v + v_op + a + b) / 4
-                            edge_points[(v, v_op)] = ep
-                            edge_points[(v_op, v)] = ep
-                            if v_op not in checklist:
-                                checklist.add(v_op)
-                                edge_avg += ep
-            
-            if n < 3:
-                n = 3
-            new_points[v] = (face_avg + 2 * edge_avg + (n - 3) * v) / n
-            
-        #for i, p1 in enumerate(self.planes):
-        #    for p2 in self.planes[i + 1:]:
-        #        for x in range(-1, 3):
-        #            if is_inner_line(p1[x], p1[x + 1], set([p1, p2])):
-        #                a = face_points[p1]
-        #                b = face_points[p2]
-        #                edge_points[(p1, p2)] = (a + b + p1[x] + p1[x + 1]) / 4
-        glBegin(GL_POINTS)
-        glColor3f(0, 0, 1)
-        for p in face_points:
-            fp = face_points[p]
-            glVertex3f(fp.x(), fp.y(), fp.z())
-        glColor3f(1, 0, 0)
-        for e in edge_points:
-            ep = edge_points[e]
-            glVertex3f(ep.x(), ep.y(), ep.z())
-        glColor3f(0, 1, 0)
-        for v in new_points:
-            nv = new_points[v]
-            glVertex3f(nv.x(), nv.y(), nv.z())
-        glEnd()
-
-        glBegin(GL_TRIANGLES)
-        for v in self.vertices:
-            for p1 in v.adjacent_plane:
-                ops = p1.opposite(v)
-                ep1 = edge_points[(v, ops[0])]
-                ep2 = edge_points[(v, ops[1])]
-                nv = new_points[v]
-                for point in [nv, ep1, ep2]:
-                    glVertex3f(point.x(), point.y(), point.z())
-                
-                for p2 in v.adjacent_plane:
-                    inner = get_inner_line(p1, p2)
-                    if inner is None:
-                        continue
-                    nv = new_points[v]
-                    mid = edge_points[inner]
-                    fp1 = face_points[p1]
-                    fp2 = face_points[p2]
-                    for point in [nv, mid, fp1, nv, mid, fp2]:
-                        glVertex3f(point.x(), point.y(), point.z())
-                
-        for p in self.planes:
-            fp = face_points[p]
-            for x in range(-2, 1):
-                ep1 = edge_points[(p[x], p[x+1])]
-                ep2 = edge_points[(p[x+1], p[x+2])]
-                for point in [fp, ep1, ep2]:
-                    glVertex3f(point.x(), point.y(), point.z())
-
-        glEnd()
-        '''
-
+        glLineWidth(1)
         lines = []
         glBegin(GL_TRIANGLES)
         glColor3f(1, 1, 1)
@@ -454,6 +425,7 @@ class Mesh(WorldObject):
             if not plane.is_triangle():
                 lines.append(plane)
                 continue
+            glColor3f(plane.color[0] / 255, plane.color[1] / 255, plane.color[2] / 255)
             for vertex in plane:
                 n = plane.get_normal()
                 n.normalize()
@@ -461,8 +433,7 @@ class Mesh(WorldObject):
                 glVertex3f(vertex.x(), vertex.y(), vertex.z())
         glEnd()
 
-
-        #'''
+        '''
         glBegin(GL_LINES)
         glColor3f(0, 0, 1)
         for plane in self.planes:
@@ -477,14 +448,8 @@ class Mesh(WorldObject):
             glColor3f(0, 0, 1)
             glVertex3f(s.x(), s.y(), s.z())
         glEnd()
-        #'''
+        '''
 
-
-        #glBegin(GL_LINES)
-        #for line in lines:
-        #    for vertex in line:
-        #        glVertex3f(vertex.x(), vertex.y(), vertex.z())
-        #glEnd()
 
 
 class Camera(WorldObject):
@@ -551,6 +516,3 @@ class Camera(WorldObject):
 
     def rev_left_axis(self, degree):
         self.forward_back(self.rotate_left_axis, degree)
-
-
-

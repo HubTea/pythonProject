@@ -14,6 +14,10 @@ import numpy as np
 import mini3d
 from enum import Enum, auto
 import time
+import threading
+
+
+lock = threading.Lock()
 
 
 class MainWindow(QMainWindow):
@@ -22,6 +26,7 @@ class MainWindow(QMainWindow):
 
         self.glWidget = GLWidget()
         self.setCentralWidget(self.glWidget)
+        self.stack = []
 
     def set_control_mode(self, mode: 'ControlMode'):
         m = self.glWidget.widget_state.control_mode
@@ -66,6 +71,10 @@ class MainWindow(QMainWindow):
             self.glWidget.cam.rev_up_axis(3)
         elif k == Qt.Key_H:
             self.glWidget.cam.rev_up_axis(-3)
+        elif k == Qt.Key_I:
+            for p in self.glWidget.selected_planes:
+                p.inverse_direction()
+                p.inverse_normal()
         elif k == Qt.Key_1:
             self.glWidget.selected_planes.clear()
         elif k == Qt.Key_2:
@@ -97,12 +106,31 @@ class MainWindow(QMainWindow):
             s = set(self.glWidget.selected_planes)
             cv, sd = self.glWidget.modeler.copy_planes(s)
             self.glWidget.selected_planes = cv
+        elif k == Qt.Key_Minus:
+            s = set(self.glWidget.selected_planes)
+            cv, sd = self.glWidget.modeler.copy_planes(s)
+            for p in self.glWidget.selected_planes:
+                self.glWidget.modeler.delete_plane(p)
+            self.glWidget.selected_planes = cv
         elif k == Qt.Key_Z:
             self.set_control_mode(ControlMode.TRANSLATION)
         elif k == Qt.Key_X:
             self.set_control_mode(ControlMode.ROTATION)
         elif k == Qt.Key_C:
             self.set_control_mode(ControlMode.SCALING)
+        elif k == Qt.Key_M:
+            self.stack.append(self.glWidget.modeler)
+            self.glWidget.modeler = mini3d.catmull_clark(self.glWidget.modeler)
+            if self.stack[-1] is self.glWidget.modeler:
+                self.stack.pop(-1)
+            self.glWidget.selected_planes.clear()
+        elif k == Qt.Key_N:
+            if len(self.stack) > 0:
+                self.glWidget.modeler = self.stack[-1]
+                self.stack.pop(-1)
+        elif k == Qt.Key_Delete:
+            for p in self.glWidget.selected_planes:
+                self.glWidget.modeler.delete_plane(p)
         self.glWidget.repaint()
 
 
@@ -142,6 +170,8 @@ class ProgramMode:
 
         self.control_mode = ControlMode.DO_NOT_ANYTHING
         self.axis = [1, 0, 0]
+
+        self.palette = (255, 255, 255)
         pass
 
 
@@ -162,7 +192,7 @@ class GLWidget(QGLWidget):
         self.cam.rotate_up_axis(180)
 
         self.modeler = mini3d.Mesh()
-        self.modeler.polygon_mode = (GL_FRONT_AND_BACK, GL_FILL)
+        #self.modeler.polygon_mode = (GL_FRONT_AND_BACK, GL_LINE)
         m = self.modeler
 
         v1 = m.append_vertex(0, 0, 0)
@@ -202,9 +232,9 @@ class GLWidget(QGLWidget):
         for p in cv:
             for v in p:
                 v.setZ(-1)
+            p.inverse_direction()
         for p in self.modeler.planes:
             p.correct_normal()
-
 
         self.grid = mini3d.Mesh()
         self.grid.polygon_mode = (GL_FRONT_AND_BACK, GL_LINE)
@@ -227,19 +257,23 @@ class GLWidget(QGLWidget):
         glClearColor(0, 0, 0, 0)
         glEnable(GL_DEPTH_TEST)
 
-        glEnable(GL_CULL_FACE)
-        glFrontFace(GL_CCW)
+        #glEnable(GL_CULL_FACE)
+        #glFrontFace(GL_CCW)
 
         glShadeModel(GL_FLAT)
 
         glEnable(GL_LIGHTING)
         glEnable(GL_LIGHT0)
+        glEnable(GL_COLOR_MATERIAL)
+        glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT)
 
-        glLightModelfv(GL_LIGHT_MODEL_AMBIENT, [1, 1, 1, 1])
+        glLightModelfv(GL_LIGHT_MODEL_AMBIENT, [0.5, 0.5, 0.5, 1])
         # self._createVertexBuffer()
 
     def paintGL(self):
+        s = time.perf_counter()
         self._draw()
+        print('drawing time : ', time.perf_counter() - s)
 
     def resizeGL(self, width, height):
         print("resize : ", width, height)
@@ -258,6 +292,7 @@ class GLWidget(QGLWidget):
         glMatrixMode(GL_MODELVIEW)
 
         self.modeler.draw()
+        #self.modeler2.draw()
 
         pos = self.modeler.pos
         up = pos + 0.1 * self.modeler.up
@@ -297,17 +332,32 @@ class GLWidget(QGLWidget):
         glEnd()
 
         #self.grid.draw()
-        glBegin(GL_LINES)
-        glColor3f(1, 0, 0)
-        glVertex3f(-1000, 0, 0)
-        glVertex3f(1000, 0, 0)
+
+
+        for i, t in enumerate([[1, 0, 0], [0, 1, 0], [0, 0, 1]]):
+            if self.widget_state.axis[i] == 0:
+                glLineWidth(1)
+            else:
+                glLineWidth(5)
+            glBegin(GL_LINES)
+            glColor3f(t[0], t[1], t[2])
+            glVertex3f(1000 * t[0], 1000 * t[1], 1000 * t[2])
+            glVertex3f(-1000 * t[0], -1000 * t[1], -1000 * t[2])
+            glEnd()
+        '''
+        if self.widget_state.axis[0] == 0:
+            glLineWidth(1)
+        else:
+            glLineWidth(3)
         glColor3f(0, 1, 0)
         glVertex3f(0, -10000, 0)
         glVertex3f(0, 1000, 0)
+
         glColor3f(0, 0, 1)
         glVertex3f(0, 0, -1000)
         glVertex3f(0, 0, 1000)
-        glEnd()
+        '''
+
 
         glPointSize(10)
         glBegin(GL_POINTS)
@@ -319,11 +369,11 @@ class GLWidget(QGLWidget):
         glEnd()
         glFlush()
 
-    def select_plane(self, mouse_x, mouse_y):
+    def get_plane(self, mx, my):
         if self.widget_state.select_mode is SelectionMode.DO_NOT_SELECT:
             return
-        start = gluUnProject(mouse_x, self.height() - mouse_y, 0)
-        end = gluUnProject(mouse_x, self.height() - mouse_y, 1)
+        start = gluUnProject(mx, self.height() - my, 0)
+        end = gluUnProject(mx, self.height() - my, 1)
 
         generator = self.modeler.collision_with_ray(mini3d.MeshVertex(*start), mini3d.MeshVertex(*end))
 
@@ -334,6 +384,10 @@ class GLWidget(QGLWidget):
             if depth < plane_to_camera:
                 plane_to_camera = depth
                 selected_plane = plane
+        return selected_plane
+
+    def select_plane(self, mx, my):
+        selected_plane = self.get_plane(mx, my)
         if selected_plane is not None:
             if self.widget_state.select_cascade is CascadeMode.DO_NOT_CASCADE:
                 self.selected_planes.clear()
@@ -352,42 +406,99 @@ class GLWidget(QGLWidget):
         for p in self.selected_planes:
             for v in p:
                 v_set.add(v)
+
         if m is ControlMode.TRANSLATION:
             delta = arg * QVector3D(*self.widget_state.axis)
             for v in v_set:
                 v += delta
-            for p in self.modeler.planes:
+            for p in self.modeler.planes:   # copy직후에는 normal벡터 설정이 어려우므로 이 단계에서 VertexGroup.direction기반으로 normal벡터 설정
                 p.correct_normal()
         elif m is ControlMode.SCALING:
-            pass
+            if len(v_set) != 0:
+                s = QVector3D(0, 0, 0)
+                for v in v_set:
+                    s += v
+                s /= len(v_set)
+
+                ratio = arg * QVector3D(*self.widget_state.axis) + QVector3D(1, 1, 1)
+                mat = np.array(
+                    [[ratio[0], 0, 0],
+                     [0, ratio[1], 0],
+                     [0, 0, ratio[2]]])
+
+                for v in v_set:
+                    t = v - s
+                    b = np.array([[t.x()], [t.y()], [t.z()]])
+                    pos = mat.dot(b)
+                    t = QVector3D(pos[0], pos[1], pos[2]) + s
+                    v.setX(t.x())
+                    v.setY(t.y())
+                    v.setZ(t.z())
+                for p in self.modeler.planes:
+                    p.correct_direction()
         elif m is ControlMode.ROTATION:
-            pass
+            if len(v_set) != 0:
+                s = QVector3D(0, 0, 0)
+                for v in v_set:
+                    s += v
+                s /= len(v_set)
+
+                if self.widget_state.axis[0] != 0:
+                    mat = np.array(
+                        [[1, 0, 0],
+                         [0, np.cos(arg), -np.sin(arg)],
+                         [0, np.sin(arg), np.cos(arg)]])
+                elif self.widget_state.axis[1] != 0:
+                    mat = np.array(
+                        [[np.cos(arg), 0, np.sin(arg)],
+                         [0, 1, 0],
+                         [-np.sin(arg), 0, np.cos(arg)]])
+                else:
+                    mat = np.array(
+                        [[np.cos(arg), -np.sin(arg), 0],
+                         [np.sin(arg), np.cos(arg), 0],
+                         [0, 0, 1]])
+
+                for v in v_set:
+                    t = v - s
+                    b = np.array([[t.x()], [t.y()], [t.z()]])
+                    pos = mat.dot(b)
+                    t = QVector3D(pos[0], pos[1], pos[2]) + s
+                    v.setX(t.x())
+                    v.setY(t.y())
+                    v.setZ(t.z())
+                for p in self.modeler.planes:
+                    p.correct_direction()
         self.repaint()
         return
 
     def mousePressEvent(self, e: QMouseEvent) -> None:
-        print("m press : ", e.x(), e.y())
-
-        if e.button() == Qt.RightButton:
-            start = QVector3D(*gluUnProject(e.x(), self.height() - e.y(), 0))
-            end = QVector3D(*gluUnProject(e.x(), self.height() - e.y(), 1))
-            collision = mini3d.ray_to_plane(
-                start,
-                end,
-                self.cam.direction,
-                self.cam.pos + self.cam.direction * self.cam.dist_from_target)
-            if collision is not None:
-                vertex = self.modeler.append_vertex(collision.x(), collision.y(), collision.z())
-                self.modeler.make_plane_with_latest(-self.cam.direction)
-        self.repaint()
-        return
-
-    def mouseReleaseEvent(self, e: QMouseEvent) -> None:
+        #print("m press : ", e.x(), e.y())
         mx = e.x()
         my = e.y()
-        if e.button() == Qt.LeftButton:
-            self.select_plane(mx, my)
+        if self.widget_state.select_mode is SelectionMode.DO_NOT_SELECT:
+            if e.button() == Qt.RightButton:
+                start = QVector3D(*gluUnProject(mx, self.height() - my, 0))
+                end = QVector3D(*gluUnProject(mx, self.height() - my, 1))
+                collision = mini3d.ray_to_plane(
+                    start,
+                    end,
+                    self.cam.direction,
+                    self.cam.pos + self.cam.direction * self.cam.dist_from_target)
+                if collision is not None:
+                    vertex = self.modeler.append_vertex(collision.x(), collision.y(), collision.z())
+                    self.modeler.make_plane_with_latest(-self.cam.direction)
+        else:
+            if e.button() == Qt.LeftButton:
+                self.select_plane(mx, my)
+            elif e.button() == Qt.RightButton:
+                p = self.get_plane(mx, my)
+                if p is not None:
+                    lock.acquire()
+                    p.color = self.widget_state.palette
+                    lock.release()
         self.repaint()
+        return
 
     def mouseMoveEvent(self, e: QMouseEvent) -> None:
         mx = e.x()
@@ -401,17 +512,38 @@ class GLWidget(QGLWidget):
 
             dp = np.sqrt((px - cx) ** 2 + (py - cy) ** 2)
             dm = np.sqrt((mx - cx) ** 2 + (my - cy) ** 2)
-            print('m', mx, my)
-            print('p', px, py)
-            print('c', cx, cy)
+            #print('m', mx, my)
+            #print('p', px, py)
+            #print('c', cx, cy)
             self.transform_mesh(0.1 * (dm - dp))
             self.mouse_snapshot = (mx, my)
         return
 
 
+def cmd_line(widget):
+    while True:
+        cmdline = input('input "end" to finish cmd line>>')
+        tokens = cmdline.split(' ')
+        if len(tokens) == 0:
+            continue
+
+        cmd = tokens[0]
+        try:
+            if cmd == 'rgb':
+                lock.acquire()
+                widget.widget_state.palette = (int(tokens[1]), int(tokens[2]), int(tokens[3]))
+                lock.release()
+            elif cmd == 'end':
+                return
+        except (ValueError, IndexError):
+            print('wrong command. input again')
+
+
 def main():
     app = QApplication([])
     window = MainWindow()
+    t = threading.Thread(target=cmd_line, args=(window.glWidget,), daemon=True)
+    t.start()
     window.show()
     app.exec_()
     print("finish")
