@@ -7,7 +7,7 @@ from OpenGL.GLU import *
 
 from PyQt5.QtCore import Qt, QSize
 from PyQt5.QtGui import QMouseEvent, QKeyEvent, QVector3D, QCursor
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout
+from PyQt5.QtWidgets import QApplication, QMainWindow
 from PyQt5.QtOpenGL import QGLWidget
 
 import numpy as np
@@ -103,14 +103,16 @@ class MainWindow(QMainWindow):
             else:
                 self.glWidget.widget_state.axis[2] = 1
         elif k == Qt.Key_0:
-            s = set(self.glWidget.selected_planes)
-            cv, sd = self.glWidget.modeler.copy_planes(s)
-            self.glWidget.selected_planes = cv
+            self.glWidget.widget_state.select_mode = SelectionMode.ALL
         elif k == Qt.Key_Minus:
             s = set(self.glWidget.selected_planes)
             cv, sd = self.glWidget.modeler.copy_planes(s)
             for p in self.glWidget.selected_planes:
                 self.glWidget.modeler.delete_plane(p)
+            self.glWidget.selected_planes = cv
+        elif k == Qt.Key_Equal:
+            s = set(self.glWidget.selected_planes)
+            cv, sd = self.glWidget.modeler.copy_planes(s, False)
             self.glWidget.selected_planes = cv
         elif k == Qt.Key_Z:
             self.set_control_mode(ControlMode.TRANSLATION)
@@ -131,6 +133,10 @@ class MainWindow(QMainWindow):
         elif k == Qt.Key_Delete:
             for p in self.glWidget.selected_planes:
                 self.glWidget.modeler.delete_plane(p)
+        elif k == Qt.Key_F1:
+            self.glWidget.modeler.load('./mesh.3d')
+        elif k == Qt.Key_F2:
+            self.glWidget.modeler.save('./mesh.3d')
         self.glWidget.repaint()
 
 
@@ -145,8 +151,7 @@ class MouseStamp:
 
 class SelectionMode(Enum):
     DO_NOT_SELECT = 0
-    VERTEX = 1
-    LINE = 2
+    ALL = auto()
     PLANE = 3
 
 
@@ -192,7 +197,7 @@ class GLWidget(QGLWidget):
         self.cam.rotate_up_axis(180)
 
         self.modeler = mini3d.Mesh()
-        #self.modeler.polygon_mode = (GL_FRONT_AND_BACK, GL_LINE)
+        self.modeler.polygon_mode = (GL_FRONT_AND_BACK, GL_LINE)
         m = self.modeler
 
         v1 = m.append_vertex(0, 0, 0)
@@ -257,8 +262,8 @@ class GLWidget(QGLWidget):
         glClearColor(0, 0, 0, 0)
         glEnable(GL_DEPTH_TEST)
 
-        #glEnable(GL_CULL_FACE)
-        #glFrontFace(GL_CCW)
+        glEnable(GL_CULL_FACE)
+        glFrontFace(GL_CCW)
 
         glShadeModel(GL_FLAT)
 
@@ -310,7 +315,7 @@ class GLWidget(QGLWidget):
         glVertex3f(direction.x(), direction.y(), direction.z())
         glEnd()
 
-        glLightfv(GL_LIGHT0, GL_POSITION, [10, 10, 10, 1])
+        #glLightfv(GL_LIGHT0, GL_POSITION, [10, 10, 10, 1])
 
         glPointSize(20)
         glBegin(GL_POINTS)
@@ -388,6 +393,10 @@ class GLWidget(QGLWidget):
 
     def select_plane(self, mx, my):
         selected_plane = self.get_plane(mx, my)
+
+        if self.widget_state.select_mode is SelectionMode.ALL:
+            pass
+
         if selected_plane is not None:
             if self.widget_state.select_cascade is CascadeMode.DO_NOT_CASCADE:
                 self.selected_planes.clear()
@@ -497,6 +506,9 @@ class GLWidget(QGLWidget):
                     lock.acquire()
                     p.color = self.widget_state.palette
                     lock.release()
+            elif e.button() == Qt.MiddleButton:
+                p = self.get_plane(mx, my)
+                self.selected_planes = set(p.owner.planes)
         self.repaint()
         return
 
@@ -521,6 +533,7 @@ class GLWidget(QGLWidget):
 
 
 def cmd_line(widget):
+    """콘솔 창에서 명령어를 입력받고 해당 작업 수행"""
     while True:
         cmdline = input('input "end" to finish cmd line>>')
         tokens = cmdline.split(' ')
@@ -529,7 +542,7 @@ def cmd_line(widget):
 
         cmd = tokens[0]
         try:
-            if cmd == 'rgb':
+            if cmd == 'rgb':        # 색 설정. rgb r g b
                 lock.acquire()
                 widget.widget_state.palette = (int(tokens[1]), int(tokens[2]), int(tokens[3]))
                 lock.release()
@@ -537,6 +550,7 @@ def cmd_line(widget):
                 return
         except (ValueError, IndexError):
             print('wrong command. input again')
+        widget.repaint()
 
 
 def main():

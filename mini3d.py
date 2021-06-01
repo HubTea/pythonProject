@@ -1,19 +1,7 @@
-'''
-QVector를 numpy array로 교체
-Mesh에 선분 데이터 추가로 저장
-VertexGroup 노멀벡터가 최신인지 표시하는 플래그 추가 및 정점 좌표 변경시 업데이트 되도록 수정
-추가적인 충돌체크 함수 제작, Mesh.collision_with_ray의 충돌체크 코드 함수로 따로 제작
 
-vertexgroup copy method 제작
-'''
-
-from PyQt5.QtGui import QMatrix4x4
 from PyQt5.QtGui import QVector3D
-from PyQt5.QtGui import QVector4D
-
 from OpenGL.GL import *
 from OpenGL.GLU import *
-
 import numpy as np
 
 pi_div_180 = np.pi / 180
@@ -182,6 +170,7 @@ class VertexGroup:
 
     def __init__(self, v1, v2, v3=None):
         self.color = (255, 255, 255)
+        self.owner = None
         if v3 is None:
             self.group = (v1, v2)
             self.type = VertexGroup.LINE
@@ -301,7 +290,7 @@ class Mesh(WorldObject):
         self.planes = []
         self.collision_check = True
         self.catmull_clark_level = 0
-        self.polygon_mode = (GL_FRONT_AND_BACK, GL_FILL)
+        self.polygon_mode = (GL_FRONT_AND_BACK, GL_LINE)
         return
 
     def append_vertex(self, x, y, z):
@@ -334,6 +323,8 @@ class Mesh(WorldObject):
 
     def make_plane(self, v1, v2, v3=None, direction=None) -> VertexGroup:
         plane = VertexGroup(v1, v2, v3)
+        plane.owner = self
+
         self.planes.append(plane)
         v1.push_plane(plane)
         v2.push_plane(plane)
@@ -383,7 +374,7 @@ class Mesh(WorldObject):
             else:
                 continue
 
-    def copy_planes(self, p_set: 'set[VertexGroup]') -> 'set[VertexGroup]':
+    def copy_planes(self, p_set: 'set[VertexGroup]', connect=True) -> 'set[VertexGroup]':
         side_planes = set()
         cover_planes = set()
         pillars = dict()
@@ -401,6 +392,8 @@ class Mesh(WorldObject):
             cap = self.make_plane(*nvs, p.get_normal())
             cap.copy_attr_of(p)
             cover_planes.add(cap)
+            if not connect:
+                continue
             for x in range(-1, 2):
                 ov = p[x]
                 op = pillars[ov]
@@ -413,6 +406,9 @@ class Mesh(WorldObject):
                     new_plane.copy_attr_of(p)
                     side_planes.add(new_plane)
         return cover_planes, side_planes
+
+    def set_polygon_mode(self, mode):
+        self.polygon_mode = (GL_FRONT_AND_BACK, mode)
 
     def draw(self):
         glPolygonMode(*self.polygon_mode)
@@ -450,6 +446,45 @@ class Mesh(WorldObject):
         glEnd()
         '''
 
+    def save(self, path):
+        vertex_label = dict()
+        with open(path, 'w') as file:
+            file.write('v\n')
+            for i, v in enumerate(self.vertices):
+                vertex_label[v] = i
+                file.write('{0} {1} {2} {3}\n'.format(i, v.x(), v.y(), v.z()))
+            file.write('p\n')
+            for p in self.planes:
+                for v in p:
+                    file.write(str(vertex_label[v]) + ' ')
+                for c in p.color:
+                    file.write(str(c) + ' ')
+                file.write('\n')
+
+    def load(self, path):
+        vertex_label = dict()
+        self.vertices.clear()
+        self.planes.clear()
+
+        with open(path, 'r') as file:
+            content = file.readline()
+            if 'v' in content:
+                content = file.readline()
+                while 'p' not in content:
+                    s = content.split(' ')
+                    v = self.append_vertex(*[float(c) for c in s[1:4]])
+                    vertex_label[s[0]] = v
+                    content = file.readline()
+
+            if 'p' in content:
+                content = file.readline()
+                while content != '':
+                    s = content.split(' ')
+                    p = self.make_plane(vertex_label[s[0]], vertex_label[s[1]], vertex_label[s[2]])
+                    p.correct_direction()
+
+                    p.color = tuple([int(c) for c in s[3:6]])
+                    content = file.readline()
 
 
 class Camera(WorldObject):
