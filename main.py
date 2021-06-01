@@ -13,7 +13,6 @@ from PyQt5.QtOpenGL import QGLWidget
 import numpy as np
 import mini3d
 from enum import Enum, auto
-import time
 import threading
 
 
@@ -29,6 +28,7 @@ class MainWindow(QMainWindow):
         self.stack = []
 
     def set_control_mode(self, mode: 'ControlMode'):
+        """선형 변환의 종류 변경 및 변경 순간의 마우스 위치 저장"""
         m = self.glWidget.widget_state.control_mode
         if m is not mode:
             self.glWidget.widget_state.control_mode = mode
@@ -39,129 +39,134 @@ class MainWindow(QMainWindow):
 
     def keyPressEvent(self, e: QKeyEvent) -> None:
         k = e.key()
-        if k == Qt.Key_Left:
+        if k == Qt.Key_Left:         # 카메라를 왼쪽으로 이동
             self.glWidget.cam.move(0, 0, 0.1)
-        elif k == Qt.Key_Right:
+        elif k == Qt.Key_Right:      # 카메라를 오른쪽으로 이동
             self.glWidget.cam.move(0, 0, -0.1)
-        elif k == Qt.Key_Up:
+        elif k == Qt.Key_Up:         # 카메라를 위쪽으로 이동
             self.glWidget.cam.move(0, 0.1, 0)
-        elif k == Qt.Key_Down:
+        elif k == Qt.Key_Down:       # 카메라를 아래쪽으로 이동
             self.glWidget.cam.move(0, -0.1, 0)
-        elif k == Qt.Key_Q:
+        elif k == Qt.Key_Q:          # 카메라를 반시계방향으로 회전
             self.glWidget.cam.rotate_direction_axis(3)
-        elif k == Qt.Key_E:
+        elif k == Qt.Key_E:          # 카메라를 시계방향으로 회전
             self.glWidget.cam.rotate_direction_axis(-3)
-        elif k == Qt.Key_W:
+        elif k == Qt.Key_W:          # 카메라가 위쪽을 바라보도록 회전
             self.glWidget.cam.rotate_left_axis(3)
-        elif k == Qt.Key_S:
+        elif k == Qt.Key_S:          # 카메라가 아래쪽을 바라보도록 회전
             self.glWidget.cam.rotate_left_axis(-3)
-        elif k == Qt.Key_A:
+        elif k == Qt.Key_A:          # 카메라가 왼쪽을 바라보도록 회전
             self.glWidget.cam.rotate_up_axis(-3)
-        elif k == Qt.Key_D:
+        elif k == Qt.Key_D:          # 카메라가 오른쪽을 바라보도록 회전
             self.glWidget.cam.rotate_up_axis(3)
-        elif k == Qt.Key_R:
+        elif k == Qt.Key_R:          # 카메라를 앞으로 이동시킴
             self.glWidget.cam.zoom()
-        elif k == Qt.Key_F:
+        elif k == Qt.Key_F:          # 카메라를 뒤로 이동시킴
             self.glWidget.cam.zoom(False)
-        elif k == Qt.Key_T:
+        elif k == Qt.Key_T:          # 카메라가 물체의 위를 보도록 회전
             self.glWidget.cam.rev_left_axis(3)
-        elif k == Qt.Key_G:
+        elif k == Qt.Key_G:          # 카메라가 물체의 아래를 보도록 회전
             self.glWidget.cam.rev_left_axis(-3)
-        elif k == Qt.Key_Y:
+        elif k == Qt.Key_Y:          # 카메라가 물체의 왼쪽을 보도록 회전
             self.glWidget.cam.rev_up_axis(3)
-        elif k == Qt.Key_H:
+        elif k == Qt.Key_H:          # 카메라가 물체의 오른쪽을 보도록 회전
             self.glWidget.cam.rev_up_axis(-3)
-        elif k == Qt.Key_I:
+        elif k == Qt.Key_I:          # 선택된 면의 노멀 벡터의 방향을 뒤집음
             for p in self.glWidget.selected_planes:
                 p.inverse_direction()
                 p.inverse_normal()
-        elif k == Qt.Key_1:
+        elif k == Qt.Key_1:          # 선택된 면의 목록을 비움
             self.glWidget.selected_planes.clear()
-        elif k == Qt.Key_2:
+        elif k == Qt.Key_2:          # 아무것도 선택 안 함
             self.glWidget.widget_state.select_mode = SelectionMode.DO_NOT_SELECT
-        elif k == Qt.Key_3:
+        elif k == Qt.Key_3:          # 면 선택
             self.glWidget.widget_state.select_mode = SelectionMode.PLANE
-        elif k == Qt.Key_4:
+        elif k == Qt.Key_4:          # 오직 하나의 면만 선택
             self.glWidget.widget_state.select_cascade = CascadeMode.DO_NOT_CASCADE
-        elif k == Qt.Key_5:
+        elif k == Qt.Key_5:          # 계속 이어서 선택함
             self.glWidget.widget_state.select_cascade = CascadeMode.UNION
-        elif k == Qt.Key_6:
+        elif k == Qt.Key_6:          # 선택된 면의 목록에서 제외
             self.glWidget.widget_state.select_cascade = CascadeMode.DIFFERENCE
-        elif k == Qt.Key_7:
+        elif k == Qt.Key_7:          # x축 선택
             if self.glWidget.widget_state.axis[0]:
                 self.glWidget.widget_state.axis[0] = 0
             else:
                 self.glWidget.widget_state.axis[0] = 1
-        elif k == Qt.Key_8:
+        elif k == Qt.Key_8:          # y축 선택
             if self.glWidget.widget_state.axis[1]:
                 self.glWidget.widget_state.axis[1] = 0
             else:
                 self.glWidget.widget_state.axis[1] = 1
-        elif k == Qt.Key_9:
+        elif k == Qt.Key_9:          # z축 선택
             if self.glWidget.widget_state.axis[2]:
                 self.glWidget.widget_state.axis[2] = 0
             else:
                 self.glWidget.widget_state.axis[2] = 1
         elif k == Qt.Key_0:
-            self.glWidget.widget_state.select_mode = SelectionMode.ALL
-        elif k == Qt.Key_Minus:
+            pass
+            #self.glWidget.widget_state.select_mode = SelectionMode.ALL
+        elif k == Qt.Key_Minus:      # 선택된 면 복제 후 기존 면 삭제
             s = set(self.glWidget.selected_planes)
             cv, sd = self.glWidget.modeler.copy_planes(s)
             for p in self.glWidget.selected_planes:
                 self.glWidget.modeler.delete_plane(p)
             self.glWidget.selected_planes = cv
-        elif k == Qt.Key_Equal:
+        elif k == Qt.Key_Equal:      # 선택된 면 복제, 기존 면은 그대로 둠
             s = set(self.glWidget.selected_planes)
             cv, sd = self.glWidget.modeler.copy_planes(s, False)
             self.glWidget.selected_planes = cv
-        elif k == Qt.Key_Z:
+        elif k == Qt.Key_Z:          # 선택된 면 평행이동
             self.set_control_mode(ControlMode.TRANSLATION)
-        elif k == Qt.Key_X:
+        elif k == Qt.Key_X:          # 선택된 면 회전
             self.set_control_mode(ControlMode.ROTATION)
-        elif k == Qt.Key_C:
+        elif k == Qt.Key_C:          # 선택된 면 크기 변경
             self.set_control_mode(ControlMode.SCALING)
-        elif k == Qt.Key_M:
+        elif k == Qt.Key_M:          # subdivision 단계 하나 증가. 증가 이전 3D 물체는 스택에 push
             self.stack.append(self.glWidget.modeler)
             self.glWidget.modeler = mini3d.catmull_clark(self.glWidget.modeler)
             if self.stack[-1] is self.glWidget.modeler:
                 self.stack.pop(-1)
             self.glWidget.selected_planes.clear()
-        elif k == Qt.Key_N:
+        elif k == Qt.Key_N:          # subdivisㅑon 단계 하나 감소. 스택에서 pop
             if len(self.stack) > 0:
                 self.glWidget.modeler = self.stack[-1]
                 self.stack.pop(-1)
-        elif k == Qt.Key_Delete:
+        elif k == Qt.Key_Delete:     # 선택된 면 삭제
             for p in self.glWidget.selected_planes:
                 self.glWidget.modeler.delete_plane(p)
-        elif k == Qt.Key_F1:
+        elif k == Qt.Key_F1:         # mesh.3d 파일에서 3D 물체를 불러 옴
             self.glWidget.modeler.load('./mesh.3d')
-        elif k == Qt.Key_F2:
+        elif k == Qt.Key_F2:         # mesh.3d 파일에 3D 물체를 저장함
             self.glWidget.modeler.save('./mesh.3d')
         self.glWidget.repaint()
 
 
-class MouseStamp:
-    def __init__(self):
-        self.x = -1
-        self.y = -1
-        self.time_counter = -1
-        self.button = None
-        self.is_pressed = False
-
-
 class SelectionMode(Enum):
+    """
+    면 선택 시 모드
+    DO_NOT_SELECT : 면을 선택하지 않음
+    ALL : 선택된 면이 포함된 물체의 모든 면을 선택함
+    PLANE : 선택된 면만 선택함
+    """
     DO_NOT_SELECT = 0
     ALL = auto()
     PLANE = 3
 
 
 class CascadeMode(Enum):
+    """
+    면 선택 시 모드
+    DO_NOT_CASCADE : 오직 하나의 면만 선택 가능
+    UNION : 기존에 선택된 면의 집합에 합함
+    DEFFERENCE : 기존에 선택된 면의 집합에서 뺌
+    """
     DO_NOT_CASCADE = 0
     UNION = 1
     DIFFERENCE = 2
 
 
 class ControlMode(Enum):
+    """선형 변환의 종류"""
     DO_NOT_ANYTHING = auto()
     TRANSLATION = auto()
     ROTATION = auto()
@@ -169,6 +174,7 @@ class ControlMode(Enum):
 
 
 class ProgramMode:
+    """프로그램의 상태를 저장"""
     def __init__(self):
         self.select_mode = SelectionMode.DO_NOT_SELECT
         self.select_cascade = CascadeMode.DO_NOT_CASCADE
@@ -181,21 +187,22 @@ class ProgramMode:
 
 
 class GLWidget(QGLWidget):
+    """모델링 작업이 이루어지는 Widget"""
     def __init__(self, parent=None):
         super(GLWidget, self).__init__(parent)
 
         self.size = QSize(1000, 1000)
         self.setMouseTracking(True)
 
-        self.vertex = []
-
         self.widget_state = ProgramMode()
         self.selected_planes = set()
         self.mouse_snapshot = None
 
+        # 카메라 생성
         self.cam = mini3d.Camera(0, 0, 3)
         self.cam.rotate_up_axis(180)
 
+        # 직육면체 생성
         self.modeler = mini3d.Mesh()
         self.modeler.polygon_mode = (GL_FRONT_AND_BACK, GL_LINE)
         m = self.modeler
@@ -209,29 +216,6 @@ class GLWidget(QGLWidget):
         m.make_plane(v2, v3, v5, QVector3D(0, 0, 1))
         m.make_plane(v3, v4, v5, QVector3D(0, 0, 1))
         m.make_plane(v4, v1, v5, QVector3D(0, 0, 1))
-        '''
-        v6 = m.append_vertex(0, 0, -1)
-        v7 = m.append_vertex(0.5, 0, -1)
-        v8 = m.append_vertex(0.5, 0.5, -1)
-        v9 = m.append_vertex(0, 0.5, -1)
-        v10 = m.append_vertex(0.25, 0.25, -1)
-
-        
-
-        m.make_plane(v6, v7, v10)
-        m.make_plane(v7, v8, v10)
-        m.make_plane(v8, v9, v10)
-        m.make_plane(v9, v6, v10)
-
-        m.make_plane(v1, v2, v6)
-        m.make_plane(v6, v7, v2)
-        m.make_plane(v2, v3, v7)
-        m.make_plane(v7, v8, v3)
-        m.make_plane(v3, v4, v8)
-        m.make_plane(v8, v9, v4)
-        m.make_plane(v4, v1, v9)
-        m.make_plane(v9, v6, v1)
-        '''
 
         cv, sd = self.modeler.copy_planes(set(self.modeler.planes))
         for p in cv:
@@ -241,53 +225,27 @@ class GLWidget(QGLWidget):
         for p in self.modeler.planes:
             p.correct_normal()
 
-        self.grid = mini3d.Mesh()
-        self.grid.polygon_mode = (GL_FRONT_AND_BACK, GL_LINE)
-        self.grid.append_vertex(1000, 0, 0)
-        self.grid.append_vertex(-1000, 0, 0)
-        self.grid.make_line_with_latest()
-
-        self.grid.append_vertex(0, 1000, 0)
-        self.grid.append_vertex(0, -1000, 0)
-        self.grid.make_line_with_latest()
-
-        self.grid.append_vertex(0, 0, 1000)
-        self.grid.append_vertex(0, 0, -1000)
-        self.grid.make_line_with_latest()
-
     def sizeHint(self):
         return QSize(1000, 1000)
 
     def initializeGL(self):
         glClearColor(0, 0, 0, 0)
         glEnable(GL_DEPTH_TEST)
-
         glEnable(GL_CULL_FACE)
         glFrontFace(GL_CCW)
-
         glShadeModel(GL_FLAT)
 
         glEnable(GL_LIGHTING)
         glEnable(GL_LIGHT0)
         glEnable(GL_COLOR_MATERIAL)
         glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT)
-
         glLightModelfv(GL_LIGHT_MODEL_AMBIENT, [0.5, 0.5, 0.5, 1])
-        # self._createVertexBuffer()
 
     def paintGL(self):
-        s = time.perf_counter()
         self._draw()
-        print('drawing time : ', time.perf_counter() - s)
 
     def resizeGL(self, width, height):
-        print("resize : ", width, height)
         glViewport(0, 0, width, height)
-        # side = min(width, height)
-        # if side < 0:
-        #    return
-        # glViewport((width - side) // 2, (height - side) // 2, side, side)
-        return
 
     def _draw(self):
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -297,34 +255,17 @@ class GLWidget(QGLWidget):
         glMatrixMode(GL_MODELVIEW)
 
         self.modeler.draw()
-        #self.modeler2.draw()
-
-        pos = self.modeler.pos
-        up = pos + 0.1 * self.modeler.up
-        left = pos + 0.1 * self.modeler.left
-        direction = pos + 0.1 * self.modeler.direction
-        glBegin(GL_LINES)
-        glColor3f(1, 0, 0)
-        glVertex3f(pos.x(), pos.y(), pos.z())
-        glVertex3f(up.x(), up.y(), up.z())
-        glColor3f(0, 1, 0)
-        glVertex3f(pos.x(), pos.y(), pos.z())
-        glVertex3f(left.x(), left.y(), left.z())
-        glColor3f(0, 0, 1)
-        glVertex3f(pos.x(), pos.y(), pos.z())
-        glVertex3f(direction.x(), direction.y(), direction.z())
-        glEnd()
-
-        #glLightfv(GL_LIGHT0, GL_POSITION, [10, 10, 10, 1])
 
         glPointSize(20)
         glBegin(GL_POINTS)
+
+        # 카메라가 회전할 때 중심이 되는 지점 표시
         p = QVector3D(self.cam.pos)
         p += self.cam.dist_from_target * self.cam.direction
-
         glColor3f(0, 1, 1)
         glVertex3f(p.x(), p.y(), p.z())
 
+        # 선택된 면의 무게중심과 포함된 정점을 큰 점으로 표시
         for p in self.selected_planes:
             avg = QVector3D(0, 0, 0)
             for v in p:
@@ -336,34 +277,21 @@ class GLWidget(QGLWidget):
             glVertex3f(avg.x(), avg.y(), avg.z())
         glEnd()
 
-        #self.grid.draw()
-
-
+        # x축은 빨간색, y축은 초록색, z축은 파란색으로 그림
+        # 축이 선택된 상태면 굵게 그림
         for i, t in enumerate([[1, 0, 0], [0, 1, 0], [0, 0, 1]]):
             if self.widget_state.axis[i] == 0:
                 glLineWidth(1)
             else:
                 glLineWidth(5)
+
             glBegin(GL_LINES)
             glColor3f(t[0], t[1], t[2])
             glVertex3f(1000 * t[0], 1000 * t[1], 1000 * t[2])
             glVertex3f(-1000 * t[0], -1000 * t[1], -1000 * t[2])
             glEnd()
-        '''
-        if self.widget_state.axis[0] == 0:
-            glLineWidth(1)
-        else:
-            glLineWidth(3)
-        glColor3f(0, 1, 0)
-        glVertex3f(0, -10000, 0)
-        glVertex3f(0, 1000, 0)
 
-        glColor3f(0, 0, 1)
-        glVertex3f(0, 0, -1000)
-        glVertex3f(0, 0, 1000)
-        '''
-
-
+        # 각 축마다 +방향으로 0.1간격으로 10개의 점 표시
         glPointSize(10)
         glBegin(GL_POINTS)
         glColor3f(1, 1, 1)
@@ -372,9 +300,11 @@ class GLWidget(QGLWidget):
                 x = x / 10
                 glVertex3f(coeff[0] * x, coeff[1] * x, coeff[2] * x)
         glEnd()
+
         glFlush()
 
     def get_plane(self, mx, my):
+        """화면 상의 2차원 좌표를 통해 ray casting 수행. 충돌한 VertexGroup 객체 반환"""
         if self.widget_state.select_mode is SelectionMode.DO_NOT_SELECT:
             return
         start = gluUnProject(mx, self.height() - my, 0)
@@ -384,6 +314,8 @@ class GLWidget(QGLWidget):
 
         plane_to_camera = 999999999
         selected_plane = None
+
+        # 모든 면에 대해 충돌 검사. 충돌한 면 중에서 사용자의 시점에서 제일 가까운 면 선택
         for plane, collision_point in generator:
             depth = self.cam.pos.distanceToPoint(collision_point)
             if depth < plane_to_camera:
@@ -392,10 +324,8 @@ class GLWidget(QGLWidget):
         return selected_plane
 
     def select_plane(self, mx, my):
+        """get_plane 으로 VertexGroup 객체를 얻고 이를 self.selected_planes 에 추가 혹은 제거함"""
         selected_plane = self.get_plane(mx, my)
-
-        if self.widget_state.select_mode is SelectionMode.ALL:
-            pass
 
         if selected_plane is not None:
             if self.widget_state.select_cascade is CascadeMode.DO_NOT_CASCADE:
@@ -408,9 +338,11 @@ class GLWidget(QGLWidget):
                     self.selected_planes.remove(selected_plane)
 
     def transform_mesh(self, arg: 'float'):
+        """3D 물체에서 선택된 면의 정점의 위치를 바꿈"""
         m = self.widget_state.control_mode
         if m is ControlMode.DO_NOT_ANYTHING:
             return
+
         v_set = set()
         for p in self.selected_planes:
             for v in p:
@@ -424,11 +356,13 @@ class GLWidget(QGLWidget):
                 p.correct_normal()
         elif m is ControlMode.SCALING:
             if len(v_set) != 0:
+                # 무게중심 계산
                 s = QVector3D(0, 0, 0)
                 for v in v_set:
                     s += v
                 s /= len(v_set)
 
+                # 변환 행렬 계산
                 ratio = arg * QVector3D(*self.widget_state.axis) + QVector3D(1, 1, 1)
                 mat = np.array(
                     [[ratio[0], 0, 0],
@@ -447,11 +381,13 @@ class GLWidget(QGLWidget):
                     p.correct_direction()
         elif m is ControlMode.ROTATION:
             if len(v_set) != 0:
+                # 무게중심 계산
                 s = QVector3D(0, 0, 0)
                 for v in v_set:
                     s += v
                 s /= len(v_set)
 
+                # 변환 행렬 계산
                 if self.widget_state.axis[0] != 0:
                     mat = np.array(
                         [[1, 0, 0],
@@ -482,31 +418,18 @@ class GLWidget(QGLWidget):
         return
 
     def mousePressEvent(self, e: QMouseEvent) -> None:
-        #print("m press : ", e.x(), e.y())
         mx = e.x()
         my = e.y()
-        if self.widget_state.select_mode is SelectionMode.DO_NOT_SELECT:
-            if e.button() == Qt.RightButton:
-                start = QVector3D(*gluUnProject(mx, self.height() - my, 0))
-                end = QVector3D(*gluUnProject(mx, self.height() - my, 1))
-                collision = mini3d.ray_to_plane(
-                    start,
-                    end,
-                    self.cam.direction,
-                    self.cam.pos + self.cam.direction * self.cam.dist_from_target)
-                if collision is not None:
-                    vertex = self.modeler.append_vertex(collision.x(), collision.y(), collision.z())
-                    self.modeler.make_plane_with_latest(-self.cam.direction)
-        else:
-            if e.button() == Qt.LeftButton:
+        if self.widget_state.select_mode is not SelectionMode.DO_NOT_SELECT:
+            if e.button() == Qt.LeftButton:     # 면 선택
                 self.select_plane(mx, my)
-            elif e.button() == Qt.RightButton:
+            elif e.button() == Qt.RightButton:  # 해당 면에 색 지정
                 p = self.get_plane(mx, my)
                 if p is not None:
                     lock.acquire()
                     p.color = self.widget_state.palette
                     lock.release()
-            elif e.button() == Qt.MiddleButton:
+            elif e.button() == Qt.MiddleButton: # 모든 면 선택
                 p = self.get_plane(mx, my)
                 self.selected_planes = set(p.owner.planes)
         self.repaint()
@@ -521,12 +444,8 @@ class GLWidget(QGLWidget):
         if self.mouse_snapshot is not None:
             px = self.mouse_snapshot[0]
             py = self.mouse_snapshot[1]
-
             dp = np.sqrt((px - cx) ** 2 + (py - cy) ** 2)
             dm = np.sqrt((mx - cx) ** 2 + (my - cy) ** 2)
-            #print('m', mx, my)
-            #print('p', px, py)
-            #print('c', cx, cy)
             self.transform_mesh(0.1 * (dm - dp))
             self.mouse_snapshot = (mx, my)
         return
