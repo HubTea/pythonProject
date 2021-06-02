@@ -7,27 +7,34 @@ import numpy as np
 pi_div_180 = np.pi / 180
 
 
-def inner_product(a, b):
+def inner_product(a: QVector3D, b: QVector3D) -> float:
     product = a.toVector4D() * b.toVector4D()
     return product[0] + product[1] + product[2] + product[3]
 
 
-def cross_product(a, b):
+def cross_product(a: QVector3D, b: QVector3D) -> QVector3D:
     x = a[1] * b[2] - b[1] * a[2]
     y = -(a[0] * b[2] - b[0] * a[2])
     z = a[0] * b[1] - b[0] * a[1]
     return QVector3D(x, y, z)
 
 
-def triple_product(a, b, c):
+def triple_product(a: QVector3D, b: QVector3D, c: QVector3D) -> float:
     return inner_product(cross_product(a, b), c)
 
 
-def normal_vector(org, v1, v2):
+def normal_vector(org: QVector3D, v1: QVector3D, v2: QVector3D) -> QVector3D:
     return cross_product(v1 - org, v2 - org)
 
 
-def rotate(vector_as_x, vector_as_y, degree):
+def rotate(vector_as_x: QVector3D, vector_as_y: QVector3D, degree) -> 'tuple[QVector3D, QVector3D]':
+    """
+    vector_as_x와 vector_as_y를 포함하는 평면 상에서
+    두 벡터를 degree 만큼 회전시킨 벡터의 튜플을 반환
+    degree 가 0보다 클 때, 회전 후의 vector_as_x와 회전 이전의 vector_as_y 사이의 각도가 줄어들도록
+    vector_as_x 와 vector_as_y 를 설정해야 함
+    """
+
     c = np.cos(pi_div_180 * degree)
     s = np.sin(pi_div_180 * degree)
     temp_y_axis = c * vector_as_y - s * vector_as_x
@@ -35,13 +42,22 @@ def rotate(vector_as_x, vector_as_y, degree):
     return temp_x_axis, temp_y_axis
 
 
-def ray_to_plane(start, end, normal, point):
+def ray_to_plane(start: QVector3D, end: QVector3D, normal: QVector3D, point: QVector3D):
+    """
+    평면과 선분의 교차 여부 검사. 충돌했으면 충돌 좌표의 QVector3D객체 반환. 아니면 None 반환
+    start: 선분의 시작 점
+    end: 선분의 끝 점
+    normal: 평면의 노멀 벡터
+    point: 평면 위의 한 점
+    """
+
     t = inner_product(normal, point - start) / inner_product(normal, end - start)
     if 0 <= t <= 1:
         return start + t * (end - start)
 
 
 def is_inner_line(v1: 'MeshVertex', v2: 'MeshVertex', p_set: 'set[VertexGroup]') -> bool:
+    """두 정점 v1과 v2로 이루어진 선분이 면의 집합인 p_set 에서 내부에 위치했으면 True 반환. 아니며 False"""
     count = 0
     for p in v1.adjacent_plane:
         if p in p_set and v2 in p:
@@ -50,6 +66,7 @@ def is_inner_line(v1: 'MeshVertex', v2: 'MeshVertex', p_set: 'set[VertexGroup]')
 
 
 def get_inner_line(p1: 'VertexGroup', p2: 'VertexGroup') -> 'tuple[MeshVertex, MeshVertex]':
+    """두 면에 공통으로 존재하는 선분을 MeshVertex 의 튜플로 반환"""
     count = 0
     intersection = []
     for v1 in p1:
@@ -61,11 +78,17 @@ def get_inner_line(p1: 'VertexGroup', p2: 'VertexGroup') -> 'tuple[MeshVertex, M
 
 
 def catmull_clark(mesh: 'Mesh') -> 'Mesh':
-    if mesh.catmull_clark_level >= 3:
+    """mesh 에서 catmull clark subdivision 을 한 단계 적용한 새 Mesh 객체 반환"""
+    if mesh.catmull_clark_level >= 3:  # 최대 단계 제한
         return mesh
     new_mesh = Mesh()
     new_mesh.catmull_clark_level = mesh.catmull_clark_level + 1
-
+    
+    # subdivision 으로 인해 생성되는 정점들의 좌표 계산
+    #
+    # face_points: dictionary. Key 는 VertexGroup, Value 는 VertexGroup 에 포함된 정점의 좌표의 평균 F
+    # edge_points: dictionary. Key 는 MeshVertex 두 개로 이루어진 선분, Value 는 선분의 양 끝 점과 인접한 면의 F 점들의 평균 E
+    # new_points: dictionary. Key 는 MeshVertex, Value 는 새로 옮겨질 정점의 좌표
     face_points = dict()
     for mesh_plane in mesh.planes:
         f = QVector3D(0, 0, 0)
@@ -77,10 +100,10 @@ def catmull_clark(mesh: 'Mesh') -> 'Mesh':
     new_points = dict()
     edge_points = dict()
     for mesh_vertex in mesh.vertices:
-        edge_avg = QVector3D(0, 0, 0)  # average point of adjacent edges with mesh_vertex
-        face_avg = QVector3D(0, 0, 0)  # average point of adjacent planes with mesh_vertex
+        edge_avg = QVector3D(0, 0, 0)  # mesh_vertex 에 인접한 선분의 R 점들의 평균
+        face_avg = QVector3D(0, 0, 0)  # mesh_vertex 에 인접한 면의 F 점들의 평균
         n = len(mesh_vertex.adjacent_plane)
-        opposites = dict()  # key : opposite vertex, value : set of adjacent planes with the edge
+        opposites = dict()  # key : 반대편 정점, value : mesh_vertex 와 key 를 양 끝으로 하는 선분에 인접한 면의 집합
         for mesh_plane in mesh_vertex.adjacent_plane:
             face_avg += face_points[mesh_plane]
             op = mesh_plane.opposite(mesh_vertex)
@@ -107,7 +130,7 @@ def catmull_clark(mesh: 'Mesh') -> 'Mesh':
             edge_points[(mesh_vertex, op_v)] = nv
             edge_points[(op_v, mesh_vertex)] = nv
 
-        edge_avg /= len(opposites)
+        edge_avg /= len(opposites)  
 
         if n >= 3:
             nv = (face_avg + 2 * edge_avg + (n - 3) * mesh_vertex) / n
@@ -116,7 +139,8 @@ def catmull_clark(mesh: 'Mesh') -> 'Mesh':
         else:
             nv = mesh_vertex
         new_points[mesh_vertex] = new_mesh.append_vertex(nv.x(), nv.y(), nv.z())
-
+    
+    # 위에서 만들어진 정점들을 연결하여 면 구성 및 Mesh 생성
     for mesh_plane in mesh.planes:
         f = face_points[mesh_plane]
         for mesh_vertex in mesh_plane:
@@ -133,6 +157,14 @@ def catmull_clark(mesh: 'Mesh') -> 'Mesh':
 
 
 class WorldObject:
+    """
+    3차원 공간 상에 존재하는 오브젝트를 정의함
+    pos: 오브젝트의 좌표
+    direction: 오브젝트 기준으로 정면이 어느 방향인지 나타내는 벡터
+    up: 오브젝트 기준으로 위쪽이 어느 방향인지 나타내는 벡터
+    left: 오브젝트 기준으로 왼쪽이 어느 방향인지 나타내는 벡터
+    """
+    
     def __init__(self, object_name="object", x=0, y=0, z=0):
         self.pos = QVector3D(x, y, z)
         self.direction = QVector3D(0, 0, 1)
@@ -149,22 +181,36 @@ class WorldObject:
         self.pos.z = z
 
     def move(self, forward, up, left):
+        """오브젝트의 위치를 forward 방향, up 방향, left 방향으로 각각 주어진 수치만큼 옮김"""
         self.pos += left * self.left + up * self.up + forward * self.direction
 
     def rotate_direction_axis(self, degree):
+        """오브젝트를 direction 벡터를 회전축으로 삼아서 회전시킴"""
         self.up, self.left = rotate(self.up, self.left, degree)
 
     def rotate_up_axis(self, degree):
+        """오브젝트를 up 벡터를 회전축으로 삼아서 회전시킴"""
         self.left, self.direction = rotate(self.left, self.direction, degree)
 
     def rotate_left_axis(self, degree):
+        """오브젝트를 left 벡터를 회전축으로 삼아서 회전시킴"""
         self.direction, self.up = rotate(self.direction, self.up, degree)
 
     def draw(self):
+        """렌더링"""
         pass
 
 
 class VertexGroup:
+    """
+    3D 물체에서 면을 정의함
+    color: 면의 색상. RGB
+    owner: 이 면을 소유한 Mesh 객체
+    group: 이 면이 포함하고 있는 정점들의 튜플
+    type: 이 객체가 선분인지 삼각형 면인지를 나타냄
+    direction: 이 면의 노멀 벡터의 방향을 지시하는 벡터
+    """
+
     LINE = 2
     TRIANGLE = 3
 
@@ -185,14 +231,16 @@ class VertexGroup:
     def is_triangle(self):
         return self.type == VertexGroup.TRIANGLE
 
-    def nearest_vertex(self, org):
+    def nearest_vertex(self, org: QVector3D) -> 'MeshVertex':
+        """면에 포함된 정점 중 org 와의 거리가 가장 짧은 정점 반환"""
         li = []
         for v in self.group:
             li.append((v.distanceToPoint(org), v))
         li.sort()
         return li[0][1]
 
-    def nearest_line(self, org):
+    def nearest_line(self, org: QVector3D) -> 'tuple[MeshVertex, MeshVertex]':
+        """ 면에 포함된 정점들로 구성되는 선분들 중에서 org 와의 거리가 가장 짧은 선분의 양 끝 정점을 튜플로 반환"""
         li = []
         if self.type == VertexGroup.LINE:
             return self.group
@@ -208,6 +256,7 @@ class VertexGroup:
             return li[0][1], li[0][2]
 
     def opposite(self, org: 'MeshVertex') -> 'tuple[MeshVertex, MeshVertex]':
+        """면에 포함된 정점 중에서 org 를 제외한 나머지 정점들의 튜플 반환"""
         op = []
         for v in self.group:
             if v is not org:
@@ -215,10 +264,12 @@ class VertexGroup:
         return tuple(op)
 
     def inverse_normal(self):
+        """self.group 의 정점들의 순서를 바꿈으로써 면의 노멀 벡터의 방향을 뒤집음"""
         if self.type == VertexGroup.TRIANGLE:
             self.group = (self.group[0], self.group[2], self.group[1])
 
     def inverse_direction(self):
+        """self.direction 의 방향을 뒤집음"""
         if self.type == VertexGroup.TRIANGLE:
             self.direction = -self.direction
 
@@ -229,18 +280,18 @@ class VertexGroup:
         self.direction = direction
 
     def correct_normal(self):
+        """self.direction 과 면의 노멀 벡터의 내적이 양수가 되도록 노멀 벡터의 방향을 조정함"""
         normal = self.get_normal()
         if inner_product(normal, self.direction) < 0:
             self.inverse_normal()
 
     def correct_direction(self):
+        """self.direction 과 면의 노멀 벡터의 내적이 양수가 되도록 self.direction 의 방향을 조정함"""
         self.set_direction(self.get_normal())
 
     def copy_attr_of(self, plane: 'VertexGroup'):
         """
-        copy some attributes of plane like color. not group
-        :param plane: original
-        :return: None
+        self 의 일부 attribute 를 plane 에 복사함
         """
         self.color = plane.color
         pass
@@ -265,6 +316,11 @@ class VertexGroup:
 
 
 class MeshVertex(QVector3D):
+    """
+    3D 물체에서 정점을 정의함
+    adjacent_plane: 정점에 인접한 VertexGroup 의 리스트
+    """
+
     def __init__(self, x, y, z):
         QVector3D.__init__(self, x, y, z)
         self.adjacent_plane = []
@@ -273,6 +329,7 @@ class MeshVertex(QVector3D):
         self.adjacent_plane.append(plane)
 
     def pop_plane(self, plane):
+        """adjacent_plane 에서 plane 제거"""
         for (i, p) in enumerate(self.adjacent_plane):
             if p is plane:
                 self.adjacent_plane[i], self.adjacent_plane[-1] = self.adjacent_plane[-1], self.adjacent_plane[i]
@@ -284,6 +341,14 @@ class MeshVertex(QVector3D):
 
 
 class Mesh(WorldObject):
+    """
+    3D 물체를 정의함
+    vertices: 물체를 구성하는 MeshVertex 의 리스트
+    planes: 물체를 구성하는 VertexGroup 의 리스트
+    collision_check: 충돌 검사를 실행할 지 결정
+    catmull_clark_level: subdivision 의 현재 단계를 나타냄
+    """
+    
     def __init__(self):
         WorldObject.__init__(self)
         self.vertices = []
@@ -294,10 +359,12 @@ class Mesh(WorldObject):
         return
 
     def append_vertex(self, x, y, z):
+        """주어진 좌표의 정점 추가"""
         self.vertices.append(MeshVertex(x, y, z))
         return self.vertices[-1]
 
     def delete_vertex(self, vertex):
+        """정점 제거. 정점에 인접한 면의 제거도 같이 실행"""
         for (i, v) in enumerate(self.vertices):
             if v is vertex:
                 self.vertices[i], self.vertices[-1] = self.vertices[-1], self.vertices[i]
@@ -313,6 +380,7 @@ class Mesh(WorldObject):
                     self.planes.pop()
 
     def delete_plane(self, plane):
+        """면 제거. 면에 포함된 MeshVertex 의 pop_plane 실행"""
         for (i, p) in enumerate(self.planes):
             if p is plane:
                 self.planes[i], self.planes[-1] = self.planes[-1], self.planes[i]
@@ -322,6 +390,7 @@ class Mesh(WorldObject):
                     v.pop_plane(plane)
 
     def make_plane(self, v1, v2, v3=None, direction=None) -> VertexGroup:
+        """v1, v2, v3 로 구성되는 면 생성. 생성된 면 객체 반환"""
         plane = VertexGroup(v1, v2, v3)
         plane.owner = self
 
@@ -336,11 +405,13 @@ class Mesh(WorldObject):
         return plane
 
     def make_plane_with_latest(self, direction=None) -> VertexGroup:
+        """self.vertiece 의 마지막 세 정점으로 면 생성"""
         if len(self.vertices) < 3:
             return None
         return self.make_plane(self.vertices[-3], self.vertices[-2], self.vertices[-1], direction)
 
     def make_line_with_latest(self) -> VertexGroup:
+        """self.vertices 의 마지막 두 점으로 선분 생성. 사용 안 함."""
         if len(self.vertices) < 2:
             return None
         return self.make_plane(self.vertices[-2], self.vertices[-1])
@@ -349,6 +420,7 @@ class Mesh(WorldObject):
     # VertexGroup : 물체의 면. 3개의 정점의 벡터를 튜플로 가짐.
     # return value : (plane: VertexGroup, collision point: QVector3D)
     def collision_with_ray(self, start, end):
+        """Mesh 와 선분과의 충돌 검사. 충돌한 면과 좌표로 구성된 튜플 반환"""
         if not self.collision_check:
             return
         for plane in self.planes:
@@ -375,6 +447,11 @@ class Mesh(WorldObject):
                 continue
 
     def copy_planes(self, p_set: 'set[VertexGroup]', connect=True) -> 'set[VertexGroup]':
+        """
+        p_set 으로 주어진 면들을 복사함
+        connect: True 이면 원본과 복제본의 사이에 면을 생성하여 연결하여 기둥 형태로 만듬. False 이면 사이에 면을 생성하지 않음.
+        """
+
         side_planes = set()
         cover_planes = set()
         pillars = dict()
@@ -411,42 +488,24 @@ class Mesh(WorldObject):
         self.polygon_mode = (GL_FRONT_AND_BACK, mode)
 
     def draw(self):
+        """화면에 3D 물체를 출력함"""
         glPolygonMode(*self.polygon_mode)
-
         glLineWidth(1)
-        lines = []
+
         glBegin(GL_TRIANGLES)
         glColor3f(1, 1, 1)
         for plane in self.planes:
-            if not plane.is_triangle():
-                lines.append(plane)
-                continue
-            glColor3f(plane.color[0] / 255, plane.color[1] / 255, plane.color[2] / 255)
-            for vertex in plane:
-                n = plane.get_normal()
-                n.normalize()
-                glNormal3f(n.x(), n.y(), n.z())
-                glVertex3f(vertex.x(), vertex.y(), vertex.z())
+            if plane.is_triangle():
+                glColor3f(plane.color[0] / 255, plane.color[1] / 255, plane.color[2] / 255)
+                for vertex in plane:
+                    n = plane.get_normal()
+                    n.normalize()
+                    glNormal3f(n.x(), n.y(), n.z())
+                    glVertex3f(vertex.x(), vertex.y(), vertex.z())
         glEnd()
-
-        '''
-        glBegin(GL_LINES)
-        glColor3f(0, 0, 1)
-        for plane in self.planes:
-            s = QVector3D(0, 0, 0)
-            for v in plane:
-                s += v
-            s = s / len(plane)
-            glVertex3f(s.x(), s.y(), s.z())
-            n = plane.get_normal()
-            n.normalize()
-            s += n
-            glColor3f(0, 0, 1)
-            glVertex3f(s.x(), s.y(), s.z())
-        glEnd()
-        '''
 
     def save(self, path):
+        """Mesh 를 파일로 저장"""
         vertex_label = dict()
         with open(path, 'w') as file:
             file.write('v\n')
@@ -462,32 +521,42 @@ class Mesh(WorldObject):
                 file.write('\n')
 
     def load(self, path):
-        vertex_label = dict()
-        self.vertices.clear()
-        self.planes.clear()
+        """파일로부터 Mesh 를 생성함"""
+        try:
+            with open(path, 'r') as file:
+                vertex_label = dict()
+                self.vertices.clear()
+                self.planes.clear()
 
-        with open(path, 'r') as file:
-            content = file.readline()
-            if 'v' in content:
                 content = file.readline()
-                while 'p' not in content:
-                    s = content.split(' ')
-                    v = self.append_vertex(*[float(c) for c in s[1:4]])
-                    vertex_label[s[0]] = v
+                if 'v' in content:
                     content = file.readline()
+                    while 'p' not in content:
+                        s = content.split(' ')
+                        v = self.append_vertex(*[float(c) for c in s[1:4]])
+                        vertex_label[s[0]] = v
+                        content = file.readline()
 
-            if 'p' in content:
-                content = file.readline()
-                while content != '':
-                    s = content.split(' ')
-                    p = self.make_plane(vertex_label[s[0]], vertex_label[s[1]], vertex_label[s[2]])
-                    p.correct_direction()
-
-                    p.color = tuple([int(c) for c in s[3:6]])
+                if 'p' in content:
                     content = file.readline()
+                    while content != '':
+                        s = content.split(' ')
+                        p = self.make_plane(vertex_label[s[0]], vertex_label[s[1]], vertex_label[s[2]])
+                        p.correct_direction()
+
+                        p.color = tuple([int(c) for c in s[3:6]])
+                        content = file.readline()
+        except FileNotFoundError:
+            pass
 
 
 class Camera(WorldObject):
+    """
+    사용자가 물체를 바라보는 위치와 각도를 관리함.
+    투영 변환에 관여함.
+
+    """
+
     def __init__(self, x=0, y=0, z=1):
         WorldObject.__init__(self, "camera", x, y, z)
         self.dist_from_target = z
