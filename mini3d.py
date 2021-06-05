@@ -45,6 +45,7 @@ def rotate(vector_as_x: QVector3D, vector_as_y: QVector3D, degree) -> 'tuple[QVe
 def ray_to_plane(start: QVector3D, end: QVector3D, normal: QVector3D, point: QVector3D):
     """
     평면과 선분의 교차 여부 검사. 충돌했으면 충돌 좌표의 QVector3D객체 반환. 아니면 None 반환
+    
     start: 선분의 시작 점
     end: 선분의 끝 점
     normal: 평면의 노멀 벡터
@@ -159,6 +160,7 @@ def catmull_clark(mesh: 'Mesh') -> 'Mesh':
 class WorldObject:
     """
     3차원 공간 상에 존재하는 오브젝트를 정의함
+
     pos: 오브젝트의 좌표
     direction: 오브젝트 기준으로 정면이 어느 방향인지 나타내는 벡터
     up: 오브젝트 기준으로 위쪽이 어느 방향인지 나타내는 벡터
@@ -204,6 +206,7 @@ class WorldObject:
 class VertexGroup:
     """
     3D 물체에서 면을 정의함
+
     color: 면의 색상. RGB
     owner: 이 면을 소유한 Mesh 객체
     group: 이 면이 포함하고 있는 정점들의 튜플
@@ -318,6 +321,7 @@ class VertexGroup:
 class MeshVertex(QVector3D):
     """
     3D 물체에서 정점을 정의함
+
     adjacent_plane: 정점에 인접한 VertexGroup 의 리스트
     """
 
@@ -343,6 +347,7 @@ class MeshVertex(QVector3D):
 class Mesh(WorldObject):
     """
     3D 물체를 정의함
+
     vertices: 물체를 구성하는 MeshVertex 의 리스트
     planes: 물체를 구성하는 VertexGroup 의 리스트
     collision_check: 충돌 검사를 실행할 지 결정
@@ -416,9 +421,6 @@ class Mesh(WorldObject):
             return None
         return self.make_plane(self.vertices[-2], self.vertices[-1])
 
-    # self.planes : VertexGroup 리스트.
-    # VertexGroup : 물체의 면. 3개의 정점의 벡터를 튜플로 가짐.
-    # return value : (plane: VertexGroup, collision point: QVector3D)
     def collision_with_ray(self, start, end):
         """Mesh 와 선분과의 충돌 검사. 충돌한 면과 좌표로 구성된 튜플 반환"""
         if not self.collision_check:
@@ -449,6 +451,7 @@ class Mesh(WorldObject):
     def copy_planes(self, p_set: 'set[VertexGroup]', connect=True) -> 'set[VertexGroup]':
         """
         p_set 으로 주어진 면들을 복사함
+
         connect: True 이면 원본과 복제본의 사이에 면을 생성하여 연결하여 기둥 형태로 만듬. False 이면 사이에 면을 생성하지 않음.
         """
 
@@ -554,7 +557,6 @@ class Camera(WorldObject):
     """
     사용자가 물체를 바라보는 위치와 각도를 관리함.
     투영 변환에 관여함.
-
     """
 
     def __init__(self, x=0, y=0, z=1):
@@ -574,6 +576,7 @@ class Camera(WorldObject):
         self.height = 1
 
     def update_view(self):
+        """gluLootAt 으로 modelview 행렬 설정. projection 행렬 설정"""
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
         target = self.pos + self.direction
@@ -591,15 +594,26 @@ class Camera(WorldObject):
             glOrtho(-width, width, -self.height, self.height, -self.near, self.far)
 
     def set_screen_ratio(self, x, y):
+        """화면 가로 세로 비율 설정"""
         self.ratio = x / y
 
     def perspective(self):
+        """원근 투영 사용"""
         self.perspective_mode = "p"
 
     def orthogonal(self):
+        """직교 투영 사용"""
         self.perspective_mode = "o"
 
     def zoom(self, forward=True):
+        """
+        카메라의 위치에서 self.direction 방향으로
+        self.dist_from_target 만큼 떨어진 점에서
+        가까워지거나 멀어짐
+
+        forward: True 이면 가까워짐, False 이면 멀어짐
+        """
+
         if forward:
             new_distance = self.dist_from_target - self.zoom_step
             if new_distance < self.zoom_limit:
@@ -611,12 +625,24 @@ class Camera(WorldObject):
             self.move(-self.zoom_step, 0, 0)
 
     def forward_back(self, callback, degree):
+        """
+        카마라가 self.direction 뱡향으로 self.dist_from_target만큼 떨어진 점을 중심으로 공전함.
+        카메라를 self.direction 방향으로 self.dist_from_target 만큼 이동한 뒤
+        callback 함수 호출.
+        이후 -self.direction 방향으로 self.dist_from_target 만큼 이동
+        
+        callback: 호출할 함수
+        degree: 공전 각도
+        """
+        
         self.move(self.dist_from_target, 0, 0)
         callback(degree)
         self.move(-self.dist_from_target, 0, 0)
 
     def rev_up_axis(self, degree):
+        """self.up 을 회전축으로 삼아 공전"""
         self.forward_back(self.rotate_up_axis, degree)
 
     def rev_left_axis(self, degree):
+        """self.left 를 회전축으로 삼아 공전"""
         self.forward_back(self.rotate_left_axis, degree)

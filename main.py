@@ -127,17 +127,25 @@ class MainWindow(QMainWindow):
             if self.stack[-1] is self.glWidget.modeler:
                 self.stack.pop(-1)
             self.glWidget.selected_planes.clear()
-        elif k == Qt.Key_N:          # subdivisㅑon 단계 하나 감소. 스택에서 pop
+        elif k == Qt.Key_N:          # subdivision 단계 하나 감소. 스택에서 pop
             if len(self.stack) > 0:
                 self.glWidget.modeler = self.stack[-1]
                 self.stack.pop(-1)
+        elif k == Qt.Key_V:
+            polygon_mode = self.glWidget.modeler.polygon_mode
+            if polygon_mode[1] == GL_FILL:
+                self.glWidget.modeler.polygon_mode = (GL_FRONT_AND_BACK, GL_LINE)
+            else:
+                self.glWidget.modeler.polygon_mode = (GL_FRONT_AND_BACK, GL_FILL)
+        elif k == Qt.Key_B:
+            pass
         elif k == Qt.Key_Delete:     # 선택된 면 삭제
             for p in self.glWidget.selected_planes:
                 self.glWidget.modeler.delete_plane(p)
-        elif k == Qt.Key_F1:         # mesh.3d 파일에서 3D 물체를 불러 옴
-            self.glWidget.modeler.load('./mesh.3d')
-        elif k == Qt.Key_F2:         # mesh.3d 파일에 3D 물체를 저장함
+        elif k == Qt.Key_F1:         # mesh.3d 파일에 3D 물체를 저장함
             self.glWidget.modeler.save('./mesh.3d')
+        elif k == Qt.Key_F2:         # mesh.3d 파일에서 3D 물체를 불러 옴
+            self.glWidget.modeler.load('./mesh.3d')
         self.glWidget.repaint()
 
 
@@ -148,6 +156,7 @@ class SelectionMode(Enum):
     ALL : 선택된 면이 포함된 물체의 모든 면을 선택함
     PLANE : 선택된 면만 선택함
     """
+
     DO_NOT_SELECT = 0
     ALL = auto()
     PLANE = 3
@@ -160,6 +169,7 @@ class CascadeMode(Enum):
     UNION : 기존에 선택된 면의 집합에 합함
     DEFFERENCE : 기존에 선택된 면의 집합에서 뺌
     """
+
     DO_NOT_CASCADE = 0
     UNION = 1
     DIFFERENCE = 2
@@ -239,7 +249,7 @@ class GLWidget(QGLWidget):
         glEnable(GL_LIGHT0)
         glEnable(GL_COLOR_MATERIAL)
         glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT)
-        glLightModelfv(GL_LIGHT_MODEL_AMBIENT, [0.5, 0.5, 0.5, 1])
+        glColorMaterial(GL_FRONT_AND_BACK, GL_DIFFUSE)
 
     def paintGL(self):
         self._draw()
@@ -254,7 +264,13 @@ class GLWidget(QGLWidget):
 
         glMatrixMode(GL_MODELVIEW)
 
+        glEnable(GL_LIGHTING)
+        glEnable(GL_LIGHT0)
+
         self.modeler.draw()
+
+        glDisable(GL_LIGHTING)
+        glDisable(GL_LIGHT0)
 
         glPointSize(20)
         glBegin(GL_POINTS)
@@ -469,7 +485,6 @@ def cmd_line(widget):
                 return
         except (ValueError, IndexError):
             print('wrong command. input again')
-        widget.repaint()
 
 
 def main():
