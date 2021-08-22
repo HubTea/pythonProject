@@ -5,8 +5,8 @@
 from OpenGL.GL import *
 from OpenGL.GLU import *
 
-from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtGui import QMouseEvent, QKeyEvent, QVector3D, QCursor
+from PyQt5.QtCore import Qt, QSize, QPoint
+from PyQt5.QtGui import QMouseEvent, QKeyEvent, QVector3D, QCursor, QPainter
 from PyQt5.QtWidgets import QApplication, QMainWindow
 from PyQt5.QtOpenGL import QGLWidget
 
@@ -447,7 +447,20 @@ class GLWidget(QGLWidget):
                     lock.release()
             elif e.button() == Qt.MiddleButton: # 모든 면 선택
                 p = self.get_plane(mx, my)
-                self.selected_planes = set(p.owner.planes)
+                p_set = set()
+                p_set.add(p)
+                q1 = [p]
+                q2 = []
+                while len(q1) != 0:
+                    self.selected_planes = self.selected_planes.union(set(q1))
+                    for p in q1:
+                        for v in p:
+                            for adj_p in v.adjacent_plane:
+                                if adj_p not in p_set:
+                                    p_set.add(adj_p)
+                                    q2.append(adj_p)
+                    q1.clear()
+                    q1, q2 = q2, q1
         self.repaint()
         return
 
@@ -494,6 +507,7 @@ def main():
     t.start()
     window.show()
     app.exec_()
+    t.join();
     print("finish")
 
 
