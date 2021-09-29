@@ -325,8 +325,9 @@ class MeshVertex(QVector3D):
     adjacent_plane: 정점에 인접한 VertexGroup 의 리스트
     """
 
-    def __init__(self, x, y, z):
-        QVector3D.__init__(self, x, y, z)
+    def __init__(self, owner, vertex_id):
+        self.owner = owner
+        self.vertex_id = vertex_id
         self.adjacent_plane = []
 
     def push_plane(self, plane):
@@ -357,16 +358,39 @@ class Mesh(WorldObject):
     def __init__(self):
         WorldObject.__init__(self)
         self.vertices = []
+        self.vertex_coordinates = np.ndarray(shape=(4, 0), dtype=np.float)
         self.planes = []
+
         self.collision_check = True
         self.catmull_clark_level = 0
         self.polygon_mode = (GL_FRONT_AND_BACK, GL_LINE)
         return
 
-    def append_vertex(self, x, y, z):
-        """주어진 좌표의 정점 추가"""
-        self.vertices.append(MeshVertex(x, y, z))
-        return self.vertices[-1]
+    def vertices_count(self):
+        return self.vertex_coordinates.shape[1];
+
+    def planes_count(self):
+        return len(self.planes)
+
+    def append_vertex(self, coordinates):
+        """
+        주어진 좌표의 정점 추가
+
+        coordinates: 길이 3인 시퀀스의 시퀀스
+
+        return: 새로 생성된 MeshVertex 객체의 리스트
+        """
+        current_len = self.vertices_count()
+
+        expanded_coord = [self.vertex_coordinates]
+        for coord in coordinates:
+            expanded_coord.append((coord[0], coord[1], coord[2], 0))
+
+        self.vertex_coordinates = np.column_stack(expanded_coord)
+
+        for vertex_id in range(current_len, self.vertices_count()):
+            self.vertices.append(MeshVertex(self, vertex_id))
+        return self.vertices[current_len:self.vertices_count()]
 
     def delete_vertex(self, vertex):
         """정점 제거. 정점에 인접한 면의 제거도 같이 실행"""
