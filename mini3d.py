@@ -318,7 +318,7 @@ class VertexGroup:
         return id(self)
 
 
-class MeshVertex(QVector3D):
+class MeshVertex:
     """
     3D 물체에서 정점을 정의함
 
@@ -341,6 +341,9 @@ class MeshVertex(QVector3D):
                 self.adjacent_plane.pop()
                 break
 
+    def get_coord(self) -> 'np.array[x, y, z, 1]':
+        return self.owner.get_coord(self.vertex_id)
+
     def __hash__(self):
         return id(self)
 
@@ -350,6 +353,7 @@ class Mesh(WorldObject):
     3D 물체를 정의함
 
     vertices: 물체를 구성하는 MeshVertex 의 리스트
+    vertex_coordinates: 4행 n열 행렬. 정점들의 좌표 저장
     planes: 물체를 구성하는 VertexGroup 의 리스트
     collision_check: 충돌 검사를 실행할 지 결정
     catmull_clark_level: subdivision 의 현재 단계를 나타냄
@@ -372,7 +376,10 @@ class Mesh(WorldObject):
     def planes_count(self):
         return len(self.planes)
 
-    def append_vertex(self, coordinates):
+    def get_coord(self, index: int) -> 'np.array[x, y, z, 1]':
+        return self.vertex_coordinates[:, index]
+
+    def append_vertex(self, coordinates) -> 'list[MeshVertex, ...]':
         """
         주어진 좌표의 정점 추가
 
@@ -384,7 +391,7 @@ class Mesh(WorldObject):
 
         expanded_coord = [self.vertex_coordinates]
         for coord in coordinates:
-            expanded_coord.append((coord[0], coord[1], coord[2], 0))
+            expanded_coord.append((coord[0], coord[1], coord[2], 1))
 
         self.vertex_coordinates = np.column_stack(expanded_coord)
 
