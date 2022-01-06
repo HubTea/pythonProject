@@ -466,12 +466,6 @@ class Mesh(WorldObject):
             return None
         return self.make_plane(self.vertices[-3], self.vertices[-2], self.vertices[-1], direction)
 
-    def make_line_with_latest(self) -> VertexGroup:
-        """self.vertices 의 마지막 두 점으로 선분 생성. 사용 안 함."""
-        if len(self.vertices) < 2:
-            return None
-        return self.make_plane(self.vertices[-2], self.vertices[-1])
-
     def collision_with_ray(self, start, end):
         """Mesh 와 선분과의 충돌 검사. 충돌한 면과 좌표로 구성된 튜플 반환"""
         if not self.collision_check:
