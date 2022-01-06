@@ -373,6 +373,15 @@ class Mesh(WorldObject):
         self.polygon_mode = (GL_FRONT_AND_BACK, GL_LINE)
         return
 
+    def is_valid(self):
+        if len(self.vertices) != self.vertex_coordinates.shape[1]:
+            return False
+        for (i, v) in enumerate(self.vertices):
+            for c in range(3):
+                if v.get_coord()[c] != self.vertex_coordinates[:, i][c]:
+                    return False
+        return True
+
     def vertices_count(self):
         return self.vertex_coordinates.shape[1];
 

@@ -38,6 +38,7 @@ def test_vertex_deletion_on_mesh_without_plane():
     assert is_equal_coord(mesh.get_coord(1), coord_seq[2])
 
     assert mesh.vertices_count() == 2
+    assert mesh.is_valid()
 
 
 def is_equal_coord(coord1: 'list[x, y, z]', coord2: 'list[x, y, z]') -> bool:
@@ -55,3 +56,5 @@ def insert_vertices_in_mesh(coord_seq: 'list[list[x, y, z], ...]', mesh: 'Mesh')
     for index in range(0, len(coord_seq)):
         mesh_vertex_coord = new_mesh_vertex_seq[index].get_coord()
         assert is_equal_coord(mesh_vertex_coord, coord_seq[index])
+
+    assert mesh.is_valid()
