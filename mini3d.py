@@ -446,15 +446,15 @@ class Mesh(WorldObject):
                     v.pop_plane(plane)
 
     def make_plane(self, v1: MeshVertex, v2: MeshVertex, v3: MeshVertex, direction=None) -> VertexGroup:
-        """v1, v2, v3 로 구성되는 면 생성. 생성된 면 객체 반환"""
+        """v1, v2, v3 로 구성되는 면 생성."""
         plane = VertexGroup(v1, v2, v3)
         plane.owner = self
 
         self.planes.append(plane)
         v1.push_plane(plane)
         v2.push_plane(plane)
-        if v3 is not None:
-            v3.push_plane(plane)
+        v3.push_plane(plane)
+
         if direction is not None:
             plane.set_direction(direction)
             plane.correct_normal()
