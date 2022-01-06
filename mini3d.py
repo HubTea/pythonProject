@@ -330,6 +330,9 @@ class MeshVertex:
         self.vertex_id = vertex_id
         self.adjacent_plane = []
 
+    def set_id(self, vertex_id):
+        self.vertex_id = vertex_id
+
     def push_plane(self, plane):
         self.adjacent_plane.append(plane)
 
@@ -399,7 +402,7 @@ class Mesh(WorldObject):
             self.vertices.append(MeshVertex(self, vertex_id))
         return self.vertices[current_len:self.vertices_count()]
 
-    def delete_vertex(self, vertex):
+    def delete_vertex(self, vertex: MeshVertex):
         """정점 제거. 정점에 인접한 면의 제거도 같이 실행"""
         for (i, v) in enumerate(self.vertices):
             if v is vertex:
