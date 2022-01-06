@@ -7,6 +7,9 @@ import mini3d
 
 #Mesh.delete_plane() 테스트
 
+#Mesh.make_plane() 테스트
+
+#Mesh.make_plane_with_latest() 테스트
 
 
 def test_mesh_insert_vertices_in_empty_mesh_return_corresponding_mesh_vertex_list():
