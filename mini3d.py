@@ -407,7 +407,12 @@ class Mesh(WorldObject):
         for (i, v) in enumerate(self.vertices):
             if v is vertex:
                 self.vertices[i], self.vertices[-1] = self.vertices[-1], self.vertices[i]
+                self.vertices[i].set_id(i);
                 self.vertices.pop()
+
+                last = self.vertices_count() - 1
+                self.vertex_coordinates[:, i] = self.vertex_coordinates[:, last]
+                self.vertex_coordinates = self.vertex_coordinates[:, :last]
 
                 for plane in v.adjacent_plane:
                     for adj_vertex in plane:
