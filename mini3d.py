@@ -391,7 +391,7 @@ class Mesh(WorldObject):
     def get_coord(self, index: int) -> 'np.array[x, y, z, 1]':
         return self.vertex_coordinates[:, index]
 
-    def append_vertex(self, coordinates) -> 'list[MeshVertex, ...]':
+    def append_vertex(self, coordinates: 'list[list, ...]') -> 'list[MeshVertex, ...]':
         """
         주어진 좌표의 정점 추가
 
@@ -416,7 +416,7 @@ class Mesh(WorldObject):
         for (i, v) in enumerate(self.vertices):
             if v is vertex:
                 self.vertices[i], self.vertices[-1] = self.vertices[-1], self.vertices[i]
-                self.vertices[i].set_id(i);
+                self.vertices[i].set_id(i)
                 self.vertices.pop()
 
                 last = self.vertices_count() - 1
@@ -432,8 +432,11 @@ class Mesh(WorldObject):
                     self.planes[idx], self.planes[-1] = self.planes[-1], self.planes[idx]
                     self.planes.pop()
 
-    def delete_plane(self, plane):
-        """면 제거. 면에 포함된 MeshVertex 의 pop_plane 실행"""
+    def delete_plane(self, plane: VertexGroup):
+        """
+        Mesh.planes에서 plane에 해당하는 원소 제거.
+        plane에 포함된 MeshVertex의 pop_plane 실행
+        """
         for (i, p) in enumerate(self.planes):
             if p is plane:
                 self.planes[i], self.planes[-1] = self.planes[-1], self.planes[i]
@@ -442,7 +445,7 @@ class Mesh(WorldObject):
                 for v in plane:
                     v.pop_plane(plane)
 
-    def make_plane(self, v1, v2, v3=None, direction=None) -> VertexGroup:
+    def make_plane(self, v1: MeshVertex, v2: MeshVertex, v3: MeshVertex, direction=None) -> VertexGroup:
         """v1, v2, v3 로 구성되는 면 생성. 생성된 면 객체 반환"""
         plane = VertexGroup(v1, v2, v3)
         plane.owner = self
