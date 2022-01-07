@@ -493,10 +493,10 @@ class Mesh(WorldObject):
         end_vector = np.array([end[0], end[1], end[2]])
         ray = end_vector - start_vector
         for plane in self.planes:
-            edge1 = plane[1].get_coord()[:3] - plane[0].get_coord()[:3]
-            edge2 = plane[2].get_coord()[:3] - plane[0].get_coord()[:3]
+            edge1 = plane[1] - plane[0]
+            edge2 = plane[2] - plane[0]
 
-            p0_to_start = start - plane[0].get_coord()[:3]
+            p0_to_start = start - plane[0].get_coord()
 
             matrix_a = np.array([edge1, edge2, -ray]).transpose()
             matrix_b = p0_to_start.transpose()
