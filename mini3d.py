@@ -469,30 +469,33 @@ class Mesh(WorldObject):
             return None
         return self.make_plane(self.vertices[-3], self.vertices[-2], self.vertices[-1], direction)
 
-    def collision_with_ray(self, start, end):
-        """Mesh 와 선분과의 충돌 검사. 충돌한 면과 좌표로 구성된 튜플 반환"""
+    def collision_with_ray(self, start: 'list[x, y, z]', end: 'list[x, y, z]') -> 'tuple[VertexGroup, np.array]':
+        """
+        Mesh에 포함된 면들과 start와 end를 시작과 끝으로 하는 선분과의 충돌을 검사하는 generator
+        충돌한 면과 좌표로 구성된 튜플 반환
+        반환되는 순서는 충돌점과 start 사이의 거리와는 관련이 없음
+        """
         if not self.collision_check:
             return
-        for plane in self.planes:
-            if not plane.is_triangle():
-                continue
-            edge1 = plane[1] - plane[0]
-            edge2 = plane[2] - plane[0]
-            ray = end - start
-            p0_to_start = start - plane[0]
 
-            matrix_a = np.array([
-                [edge1[0], edge2[0], -ray[0]],
-                [edge1[1], edge2[1], -ray[1]],
-                [edge1[2], edge2[2], -ray[2]]])
-            matrix_b = np.array([[p0_to_start[0]], [p0_to_start[1]], [p0_to_start[2]]])
+        start_vector = np.array([start[0], start[1], start[2]])
+        end_vector = np.array([end[0], end[1], end[2]])
+        ray = end_vector - start_vector
+        for plane in self.planes:
+            edge1 = plane[1].get_coord()[:3] - plane[0].get_coord()[:3]
+            edge2 = plane[2].get_coord()[:3] - plane[0].get_coord()[:3]
+
+            p0_to_start = start - plane[0].get_coord()[:3]
+
+            matrix_a = np.array([edge1, edge2, -ray]).transpose()
+            matrix_b = p0_to_start.transpose()
             try:
                 (u, v, t) = np.linalg.solve(matrix_a, matrix_b)
             except np.linalg.LinAlgError:
                 continue
 
-            if t[0] >= 0 and u[0] >= 0 and v[0] >= 0 and u[0] + v[0] <= 1:
-                yield plane, start + t[0] * ray
+            if t >= 0 and u >= 0 and v >= 0 and u + v <= 1:
+                yield plane, start_vector + t * ray
             else:
                 continue
 
