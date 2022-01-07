@@ -461,7 +461,10 @@ class Mesh(WorldObject):
         return plane
 
     def make_plane_with_latest(self, direction=None) -> VertexGroup:
-        """self.vertiece 의 마지막 세 정점으로 면 생성"""
+        """
+        self.vertiece 의 마지막 세 정점으로 면 생성
+        정점이 부족할 경우 None 반환
+        """
         if len(self.vertices) < 3:
             return None
         return self.make_plane(self.vertices[-3], self.vertices[-2], self.vertices[-1], direction)
