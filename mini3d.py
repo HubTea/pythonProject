@@ -396,8 +396,8 @@ class Mesh(WorldObject):
     def planes_count(self):
         return len(self.planes)
 
-    def get_coord(self, index: int) -> 'np.array[x, y, z, 1]':
-        return self.vertex_coordinates[:, index]
+    def get_coord(self, index: int) -> 'np.array[x, y, z]':
+        return self.vertex_coordinates[:3, index]
 
     def append_vertex(self, coordinates: 'list[list, ...]') -> 'list[MeshVertex, ...]':
         """
