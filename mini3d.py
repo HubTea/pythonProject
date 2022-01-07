@@ -355,6 +355,9 @@ class MeshVertex:
     def __hash__(self):
         return id(self)
 
+    def __sub__(self, other: 'MeshVertex') -> np.ndarray:
+        return self.get_coord() - other.get_coord()
+
 
 #TODO
 #Review Mesh.copy_planes()
