@@ -526,7 +526,7 @@ class Mesh(WorldObject):
         #위의 반복문과 합치면 안 됨.
         #MeshVertex가 중복될 수 있기 때문.
         for v in pillars:
-            pillars[v] = self.append_vertex(v.x(), v.y(), v.z())
+            pillars[v] = self.append_vertex([v.x(), v.y(), v.z()])[0]
 
         for p in p_set:
             new_vertices = [pillars[v] for v in p]
@@ -539,12 +539,13 @@ class Mesh(WorldObject):
 
             for vertex_index in range(-1, 2):
                 original_vertex = p[vertex_index]
-                opposite = pillars[original_vertex]
                 next_original_vertex = p[vertex_index + 1]
-                next_opposite = pillars[next_original_vertex]
 
                 if is_inner_line(original_vertex, next_original_vertex, p_set):
                     continue
+
+                opposite = pillars[original_vertex]
+                next_opposite = pillars[next_original_vertex]
 
                 for vertices in [
                     [original_vertex, opposite, next_original_vertex],
