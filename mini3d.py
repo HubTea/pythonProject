@@ -349,7 +349,7 @@ class MeshVertex:
                 self.adjacent_plane.pop()
                 break
 
-    def get_coord(self) -> 'np.array[x, y, z, 1]':
+    def get_coord(self) -> 'np.array[x, y, z]':
         return self.owner.get_coord(self.vertex_id)
 
     def __hash__(self):
