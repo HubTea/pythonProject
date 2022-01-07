@@ -7,6 +7,9 @@ import numpy as np
 pi_div_180 = np.pi / 180
 
 
+#TODO
+#Review, test, modify global functions
+
 def inner_product(a: QVector3D, b: QVector3D) -> float:
     product = a.toVector4D() * b.toVector4D()
     return product[0] + product[1] + product[2] + product[3]
@@ -203,6 +206,8 @@ class WorldObject:
         pass
 
 
+#TODO
+#Review and test VertexGroup
 class VertexGroup:
     """
     3D 물체에서 면을 정의함
@@ -351,6 +356,9 @@ class MeshVertex:
         return id(self)
 
 
+#TODO
+#Review Mesh.copy_planes()
+#Test Mesh.copy_planes()
 class Mesh(WorldObject):
     """
     3D 물체를 정의함
@@ -515,6 +523,8 @@ class Mesh(WorldObject):
             for v in p:
                 pillars[v] = None
 
+        #위의 반복문과 합치면 안 됨.
+        #MeshVertex가 중복될 수 있기 때문.
         for v in pillars:
             pillars[v] = self.append_vertex(v.x(), v.y(), v.z())
 
@@ -523,8 +533,10 @@ class Mesh(WorldObject):
             cap = self.make_plane(*nvs, p.get_normal())
             cap.copy_attr_of(p)
             cover_planes.add(cap)
+
             if not connect:
                 continue
+
             for x in range(-1, 2):
                 ov = p[x]
                 op = pillars[ov]
