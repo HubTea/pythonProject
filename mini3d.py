@@ -529,8 +529,8 @@ class Mesh(WorldObject):
             pillars[v] = self.append_vertex(v.x(), v.y(), v.z())
 
         for p in p_set:
-            nvs = [pillars[v] for v in p]
-            cap = self.make_plane(*nvs, p.get_normal())
+            new_vertices = [pillars[v] for v in p]
+            cap = self.make_plane(*new_vertices, p.get_normal())
             cap.copy_attr_of(p)
             cover_planes.add(cap)
 
@@ -538,14 +538,21 @@ class Mesh(WorldObject):
                 continue
 
             for vertex_index in range(-1, 2):
-                ov = p[vertex_index]
-                op = pillars[ov]
-                n_ov = p[vertex_index + 1]
-                n_op = pillars[n_ov]
-                if is_inner_line(ov, n_ov, p_set):
+                original_vertex = p[vertex_index]
+                opposite = pillars[original_vertex]
+                next_original_vertex = p[vertex_index + 1]
+                next_opposite = pillars[next_original_vertex]
+
+                if is_inner_line(original_vertex, next_original_vertex, p_set):
                     continue
-                for vertices in [[ov, op, n_ov], [n_ov, n_op, op]]:
-                    new_plane = self.make_plane(vertices[0], vertices[1], vertices[2], vertices[0] - p[vertex_index - 1])
+
+                for vertices in [
+                    [original_vertex, opposite, next_original_vertex],
+                    [next_original_vertex, next_opposite, opposite]
+                ]:
+                    new_plane = self.make_plane(
+                        vertices[0], vertices[1], vertices[2], vertices[0] - p[vertex_index - 1]
+                    )
                     new_plane.copy_attr_of(p)
                     side_planes.add(new_plane)
         return cover_planes, side_planes
