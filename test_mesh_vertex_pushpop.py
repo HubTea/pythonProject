@@ -5,12 +5,6 @@ import mini3d
 
 #Mesh객체의 planes에 원소가 있는 경우 Mesh.delete_vertex() 테스트
 
-#Mesh.delete_plane() 테스트
-
-#Mesh.make_plane() 테스트
-
-#Mesh.make_plane_with_latest() 테스트
-
 
 def test_mesh_insert_vertices_in_empty_mesh_return_corresponding_mesh_vertex_list():
     insert_vertices_in_mesh([
