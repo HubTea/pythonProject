@@ -394,7 +394,10 @@ class Mesh(WorldObject):
         return True
 
     def vertices_count(self):
-        return self.vertex_coordinates.shape[1];
+        return self.vertex_coordinates.shape[1]
+
+    def planes_count(self):
+        return len(self.planes)
 
     def planes_count(self):
         return len(self.planes)
