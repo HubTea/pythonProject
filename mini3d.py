@@ -268,7 +268,7 @@ class VertexGroup:
 
     def calc_normal(self) -> 'np.array':
         """이 객체의 실제 normal vector를 반환함"""
-        return np.outer(self.group[1] - self.group[0], self.group[2] - self.group[0])
+        return np.cross(self.group[1] - self.group[0], self.group[2] - self.group[0])
 
     def set_direction(self, direction):
         self.direction = direction
