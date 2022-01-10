@@ -532,7 +532,10 @@ class Mesh(WorldObject):
         #위의 반복문과 합치면 안 됨.
         #MeshVertex가 중복될 수 있기 때문.
         for v in pillars:
-            pillars[v] = self.append_vertex([v.x(), v.y(), v.z()])[0]
+            coord = v.get_coord()
+            pillars[v] = self.append_vertex([
+                [coord[0], coord[1], coord[2]]
+            ])[0]
 
         for p in p_set:
             new_vertices = [pillars[v] for v in p]
