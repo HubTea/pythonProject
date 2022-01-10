@@ -1,4 +1,5 @@
 import mini3d
+import prepared_mesh
 
 
 def test_mesh_make_plane_no_direction():
@@ -43,6 +44,38 @@ def test_mesh_make_plane_with_latest_no_direction():
 
     vertex_seq = mesh.append_vertex(coord_seq)
     plane = mesh.make_plane_with_latest()
+    assert mesh.planes_count() == 1
+    is_valid_plane(plane, vertex_seq[2], vertex_seq[3], vertex_seq[4])
+    assert mesh.is_valid()
+
+
+def test_mesh_make_plane_direction_given():
+    coord_seq = [
+        [1, 2, 3],
+        [4, 5, 6],
+        [7, 8, 9]
+    ]
+    mesh = mini3d.Mesh()
+
+    vertex_seq = mesh.append_vertex(coord_seq)
+    plane = mesh.make_plane(vertex_seq[0], vertex_seq[1], vertex_seq[2], [1, 1, 1])
+    assert mesh.planes_count() == 1
+    is_valid_plane(plane, vertex_seq[0], vertex_seq[1], vertex_seq[2])
+    assert mesh.is_valid()
+
+
+def test_mesh_make_plane_with_latest_direction_given():
+    coord_seq = [
+        [1, 2, 3],
+        [4, 5, 6],
+        [7, 8, 9],
+        [10, 11, 12],
+        [13, 14, 15]
+    ]
+    mesh = mini3d.Mesh()
+
+    vertex_seq = mesh.append_vertex(coord_seq)
+    plane = mesh.make_plane_with_latest([1, 1, 1])
     assert mesh.planes_count() == 1
     is_valid_plane(plane, vertex_seq[2], vertex_seq[3], vertex_seq[4])
     assert mesh.is_valid()
