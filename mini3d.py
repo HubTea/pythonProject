@@ -440,6 +440,9 @@ class Mesh(WorldObject):
                     for adj_vertex in plane:
                         if adj_vertex is not v:
                             adj_vertex.pop_plane(plane)
+
+                adj_plane_seq = v.adjacent_plane[:]
+                for plane in adj_plane_seq:
                     v.pop_plane(plane)
                     idx = self.planes.index(plane)
                     self.planes[idx], self.planes[-1] = self.planes[-1], self.planes[idx]
