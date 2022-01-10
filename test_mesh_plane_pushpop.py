@@ -102,6 +102,5 @@ def test_mesh_delete_plane():
 
 def is_valid_plane(plane: mini3d.VertexGroup, v1: mini3d.MeshVertex, v2: mini3d.MeshVertex, v3: mini3d.MeshVertex):
     opposite_seq = plane.opposite(v1)
-    assert plane.is_triangle()
     assert opposite_seq[0] is v2 or opposite_seq[0] is v3
     assert opposite_seq[1] is v2 or opposite_seq[1] is v3
