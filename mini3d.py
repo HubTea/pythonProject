@@ -360,8 +360,7 @@ class MeshVertex:
 
 
 #TODO
-#Review Mesh.copy_planes()
-#Test Mesh.copy_planes()
+#Test Mesh.copy_planes() after modify VertexGroup class
 class Mesh(WorldObject):
     """
     3D 물체를 정의함
