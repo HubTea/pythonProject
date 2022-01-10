@@ -1,9 +1,5 @@
 import mini3d
-
-
-#TODO
-
-#Mesh객체의 planes에 원소가 있는 경우 Mesh.delete_vertex() 테스트
+import prepared_mesh
 
 
 def test_mesh_insert_vertices_in_empty_mesh_return_corresponding_mesh_vertex_list():
@@ -43,6 +39,20 @@ def test_vertex_deletion_on_mesh_without_plane():
     assert is_equal_coord(mesh.get_coord(1), coord_seq[2])
 
     assert mesh.vertices_count() == 2
+    assert mesh.is_valid()
+
+
+def test_vertex_deletion_on_mesh_with_plane():
+    mesh = prepared_mesh.mesh_with_eight_planes()
+    vertex = mesh.vertices[0]
+    mesh.delete_vertex(vertex)
+    assert mesh.planes_count() == 7
+
+    mesh = prepared_mesh.mesh_with_eight_planes()
+    vertex = mesh.vertices[4]
+    mesh.delete_vertex(vertex)
+    assert mesh.planes_count() == 4
+
     assert mesh.is_valid()
 
 
