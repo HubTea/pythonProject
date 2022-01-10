@@ -155,7 +155,7 @@ def catmull_clark(mesh: 'Mesh') -> 'Mesh':
             e2 = edge_points[(mesh_vertex, op[1])]
 
             for v in (v1, f):
-                new_plane = new_mesh.make_plane(v, e1, e2, mesh_plane.get_normal())
+                new_plane = new_mesh.make_plane(v, e1, e2, mesh_plane.calc_normal())
                 new_plane.copy_attr_of(mesh_plane)
     return new_mesh
 
@@ -211,57 +211,44 @@ class WorldObject:
 class VertexGroup:
     """
     3D 물체에서 면을 정의함
+    VertexGroup 객체는 생성 후 생성한 쪽에서 correct_normal()을 호출해야 함
 
     color: 면의 색상. RGB
     owner: 이 면을 소유한 Mesh 객체
     group: 이 면이 포함하고 있는 정점들의 튜플
-    type: 이 객체가 선분인지 삼각형 면인지를 나타냄
-    direction: 이 면의 노멀 벡터의 방향을 지시하는 벡터
+    direction:
+        이 면의 노멀 벡터의 방향을 지시하는 벡터
+        노멀벡터와 같지는 않으나 내적을 했을 때 양수가 나옴
     """
 
-    LINE = 2
-    TRIANGLE = 3
-
-    def __init__(self, v1, v2, v3=None):
+    def __init__(self, v1: 'MeshVertex', v2: 'MeshVertex', v3: 'MeshVertex'):
         self.color = (255, 255, 255)
         self.owner = None
-        if v3 is None:
-            self.group = (v1, v2)
-            self.type = VertexGroup.LINE
-        else:
-            self.group = (v1, v2, v3)
-            self.type = VertexGroup.TRIANGLE
-            self.direction = QVector3D(1, 0, 0)
+        self.group = (v1, v2, v3)
+        self.direction = np.array([1, 0, 0])
 
-    def is_line(self):
-        return self.type == VertexGroup.LINE
-
-    def is_triangle(self):
-        return self.type == VertexGroup.TRIANGLE
-
-    def nearest_vertex(self, org: QVector3D) -> 'MeshVertex':
+    def nearest_vertex(self, org: 'np.array') -> 'MeshVertex':
         """면에 포함된 정점 중 org 와의 거리가 가장 짧은 정점 반환"""
         li = []
         for v in self.group:
-            li.append((v.distanceToPoint(org), v))
+            dist_quad = (v - org) ** 2
+            li.append((dist_quad.sum(), v))
         li.sort()
         return li[0][1]
 
-    def nearest_line(self, org: QVector3D) -> 'tuple[MeshVertex, MeshVertex]':
+    def nearest_line(self, org: 'np.array') -> 'tuple[MeshVertex, MeshVertex]':
         """ 면에 포함된 정점들로 구성되는 선분들 중에서 org 와의 거리가 가장 짧은 선분의 양 끝 정점을 튜플로 반환"""
         li = []
-        if self.type == VertexGroup.LINE:
-            return self.group
-        else:
-            for start, end in ((0, 1), (1, 2), (2, 0)):
-                v1 = self.group[start]
-                v2 = self.group[end]
-                direction = (v1 - v2)
-                direction.normalize()
-                distance = org.distanceToLine(v2, direction)
-                li.append((distance, v1, v2))
-            li.sort()
-            return li[0][1], li[0][2]
+        for start, end in ((0, 1), (1, 2), (2, 0)):
+            v1 = self.group[start]
+            v2 = self.group[end]
+            direction = (v1 - v2)
+            line = org - v2.get_coord()
+            n = np.inner(direction, line) / np.inner(direction, direction) * direction + line
+            dist_quad = n ** 2
+            li.append((dist_quad.sum, v1, v2))
+        li.sort()
+        return li[0][1], li[0][2]
 
     def opposite(self, org: 'MeshVertex') -> 'tuple[MeshVertex, MeshVertex]':
         """면에 포함된 정점 중에서 org 를 제외한 나머지 정점들의 튜플 반환"""
@@ -273,29 +260,28 @@ class VertexGroup:
 
     def inverse_normal(self):
         """self.group 의 정점들의 순서를 바꿈으로써 면의 노멀 벡터의 방향을 뒤집음"""
-        if self.type == VertexGroup.TRIANGLE:
-            self.group = (self.group[0], self.group[2], self.group[1])
+        self.group = (self.group[0], self.group[2], self.group[1])
 
     def inverse_direction(self):
         """self.direction 의 방향을 뒤집음"""
-        if self.type == VertexGroup.TRIANGLE:
-            self.direction = -self.direction
+        self.direction = -self.direction
 
-    def get_normal(self):
-        return cross_product(self.group[1] - self.group[0], self.group[2] - self.group[0])
+    def calc_normal(self) -> 'np.array':
+        """이 객체의 실제 normal vector를 반환함"""
+        return np.outer(self.group[1] - self.group[0], self.group[2] - self.group[0])
 
     def set_direction(self, direction):
         self.direction = direction
 
     def correct_normal(self):
         """self.direction 과 면의 노멀 벡터의 내적이 양수가 되도록 노멀 벡터의 방향을 조정함"""
-        normal = self.get_normal()
-        if inner_product(normal, self.direction) < 0:
+        normal = self.calc_normal()
+        if np.inner(normal, self.direction) < 0:
             self.inverse_normal()
 
     def correct_direction(self):
         """self.direction 과 면의 노멀 벡터의 내적이 양수가 되도록 self.direction 의 방향을 조정함"""
-        self.set_direction(self.get_normal())
+        self.set_direction(self.calc_normal())
 
     def copy_attr_of(self, plane: 'VertexGroup'):
         """
@@ -541,7 +527,7 @@ class Mesh(WorldObject):
 
         for p in p_set:
             new_vertices = [pillars[v] for v in p]
-            cap = self.make_plane(*new_vertices, p.get_normal())
+            cap = self.make_plane(*new_vertices, p.calc_normal())
             cap.copy_attr_of(p)
             cover_planes.add(cap)
 
@@ -583,7 +569,7 @@ class Mesh(WorldObject):
             if plane.is_triangle():
                 glColor3f(plane.color[0] / 255, plane.color[1] / 255, plane.color[2] / 255)
                 for vertex in plane:
-                    n = plane.get_normal()
+                    n = plane.calc_normal()
                     n.normalize()
                     glNormal3f(n.x(), n.y(), n.z())
                     glVertex3f(vertex.x(), vertex.y(), vertex.z())
