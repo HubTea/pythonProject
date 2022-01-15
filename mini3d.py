@@ -231,9 +231,9 @@ class VertexGroup:
         """면에 포함된 정점 중 org 와의 거리가 가장 짧은 정점 반환"""
         li = []
         for v in self.group:
-            dist_quad = (v - org) ** 2
+            dist_quad = (v.get_coord() - org) ** 2
             li.append((dist_quad.sum(), v))
-        li.sort()
+        li.sort(key=lambda x: x[0])
         return li[0][1]
 
     def nearest_line(self, org: 'np.array') -> 'tuple[MeshVertex, MeshVertex]':
@@ -244,10 +244,10 @@ class VertexGroup:
             v2 = self.group[end]
             direction = (v1 - v2)
             line = org - v2.get_coord()
-            n = np.inner(direction, line) / np.inner(direction, direction) * direction + line
+            n = np.inner(direction, line) / np.inner(direction, direction) * direction - line
             dist_quad = n ** 2
-            li.append((dist_quad.sum, v1, v2))
-        li.sort()
+            li.append((dist_quad.sum(), v1, v2))
+        li.sort(key=lambda x: x[0])
         return li[0][1], li[0][2]
 
     def opposite(self, org: 'MeshVertex') -> 'tuple[MeshVertex, MeshVertex]':
