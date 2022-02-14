@@ -287,7 +287,8 @@ class GLWidget(QGLWidget):
             for v in p:
                 avg = avg + v.get_coord()
                 glColor3f(1, 1, 0)
-                glVertex3f(v[0], v[1], v[2])
+                coord = v.get_coord();
+                glVertex3f(coord[0], coord[1], coord[2])
             avg = avg / 3
             glColor3f(0, 0, 1)
             glVertex3f(avg[0], avg[1], avg[2])
@@ -504,7 +505,7 @@ def main():
     t.start()
     window.show()
     app.exec_()
-    t.join();
+    t.join()
     print("finish")
 
 

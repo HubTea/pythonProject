@@ -96,9 +96,9 @@ def catmull_clark(mesh: 'Mesh') -> 'Mesh':
     for mesh_plane in mesh.planes:
         f = np.array([0, 0, 0])
         for mesh_vertex in mesh_plane:
-            f += mesh_vertex.get_coord()
+            f = f + mesh_vertex.get_coord()
         f = f / len(mesh_plane)
-        face_points[mesh_plane] = new_mesh.append_vertex([f[0], f[1], f[2]])[0]
+        face_points[mesh_plane] = new_mesh.append_vertex([[f[0], f[1], f[2]]])[0]
 
     new_points = dict()
     edge_points = dict()
@@ -108,7 +108,7 @@ def catmull_clark(mesh: 'Mesh') -> 'Mesh':
         n = len(mesh_vertex.adjacent_plane)
         opposites = dict()  # key : 반대편 정점, value : mesh_vertex 와 key 를 양 끝으로 하는 선분에 인접한 면의 집합
         for mesh_plane in mesh_vertex.adjacent_plane:
-            face_avg += face_points[mesh_plane].get_coord()
+            face_avg = face_avg + face_points[mesh_plane].get_coord()
             op = mesh_plane.opposite(mesh_vertex)
             for op_v in op:
                 if op_v in opposites:
@@ -120,16 +120,16 @@ def catmull_clark(mesh: 'Mesh') -> 'Mesh':
         for op_v in opposites:
             if (mesh_vertex, op_v) in edge_points:
                 s = edge_points[(mesh_vertex, op_v)].get_coord()
-                edge_avg += s
+                edge_avg = edge_avg + s
                 continue
             else:
                 s = mesh_vertex.get_coord() + op_v.get_coord()
                 for mesh_plane in opposites[op_v]:
-                    s += face_points[mesh_plane]
+                    s = s + face_points[mesh_plane].get_coord()
                 s = s / (2 + len(opposites[op_v]))
-            edge_avg += s
+            edge_avg = edge_avg + s
 
-            nv = new_mesh.append_vertex([s[0], s[1], s[2]])[0]
+            nv = new_mesh.append_vertex([[s[0], s[1], s[2]]])[0]
             edge_points[(mesh_vertex, op_v)] = nv
             edge_points[(op_v, mesh_vertex)] = nv
 
@@ -141,7 +141,7 @@ def catmull_clark(mesh: 'Mesh') -> 'Mesh':
             nv = (face_avg + edge_avg + mesh_vertex.get_coord()) / 3
         else:
             nv = mesh_vertex
-        new_points[mesh_vertex] = new_mesh.append_vertex([nv[0], nv[1], nv[2]])[0]
+        new_points[mesh_vertex] = new_mesh.append_vertex([[nv[0], nv[1], nv[2]]])[0]
     
     # 위에서 만들어진 정점들을 연결하여 면 구성 및 Mesh 생성
     for mesh_plane in mesh.planes:
