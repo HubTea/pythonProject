@@ -283,14 +283,14 @@ class GLWidget(QGLWidget):
 
         # 선택된 면의 무게중심과 포함된 정점을 큰 점으로 표시
         for p in self.selected_planes:
-            avg = QVector3D(0, 0, 0)
+            avg = np.array([0, 0, 0])
             for v in p:
-                avg = avg + v
+                avg = avg + v.get_coord()
                 glColor3f(1, 1, 0)
-                glVertex3f(v.x(), v.y(), v.z())
+                glVertex3f(v[0], v[1], v[2])
             avg = avg / 3
             glColor3f(0, 0, 1)
-            glVertex3f(avg.x(), avg.y(), avg.z())
+            glVertex3f(avg[0], avg[1], avg[2])
         glEnd()
 
         # x축은 빨간색, y축은 초록색, z축은 파란색으로 그림
@@ -326,14 +326,15 @@ class GLWidget(QGLWidget):
         start = gluUnProject(mx, self.height() - my, 0)
         end = gluUnProject(mx, self.height() - my, 1)
 
-        generator = self.modeler.collision_with_ray(mini3d.MeshVertex(*start), mini3d.MeshVertex(*end))
+        generator = self.modeler.collision_with_ray(start, end)
 
         plane_to_camera = 999999999
         selected_plane = None
 
         # 모든 면에 대해 충돌 검사. 충돌한 면 중에서 사용자의 시점에서 제일 가까운 면 선택
         for plane, collision_point in generator:
-            depth = self.cam.pos.distanceToPoint(collision_point)
+            depth = np.sum((np.array([self.cam.pos.x(), self.cam.pos.y(), self.cam.pos.z()])
+                    - collision_point) ** 2)
             if depth < plane_to_camera:
                 plane_to_camera = depth
                 selected_plane = plane
@@ -367,15 +368,15 @@ class GLWidget(QGLWidget):
         if m is ControlMode.TRANSLATION:
             delta = arg * QVector3D(*self.widget_state.axis)
             for v in v_set:
-                v += delta
+                v.set_coord(v.get_coord() + np.array([delta.x(), delta.y(), delta.z()]))
             for p in self.modeler.planes:   # copy직후에는 normal벡터 설정이 어려우므로 이 단계에서 VertexGroup.direction기반으로 normal벡터 설정
                 p.correct_normal()
         elif m is ControlMode.SCALING:
             if len(v_set) != 0:
                 # 무게중심 계산
-                s = QVector3D(0, 0, 0)
+                s = np.array([0, 0, 0])
                 for v in v_set:
-                    s += v
+                    s += v.get_coord()
                 s /= len(v_set)
 
                 # 변환 행렬 계산
@@ -389,18 +390,16 @@ class GLWidget(QGLWidget):
                     t = v - s
                     b = np.array([[t.x()], [t.y()], [t.z()]])
                     pos = mat.dot(b)
-                    t = QVector3D(pos[0], pos[1], pos[2]) + s
-                    v.setX(t.x())
-                    v.setY(t.y())
-                    v.setZ(t.z())
+                    t = np.array([pos[0], pos[1], pos[2]]) + s
+                    v.set_coord(t)
                 for p in self.modeler.planes:
                     p.correct_direction()
         elif m is ControlMode.ROTATION:
             if len(v_set) != 0:
                 # 무게중심 계산
-                s = QVector3D(0, 0, 0)
+                s = np.array([0, 0, 0])
                 for v in v_set:
-                    s += v
+                    s += v.get_coord()
                 s /= len(v_set)
 
                 # 변환 행렬 계산
@@ -424,10 +423,8 @@ class GLWidget(QGLWidget):
                     t = v - s
                     b = np.array([[t.x()], [t.y()], [t.z()]])
                     pos = mat.dot(b)
-                    t = QVector3D(pos[0], pos[1], pos[2]) + s
-                    v.setX(t.x())
-                    v.setY(t.y())
-                    v.setZ(t.z())
+                    t = np.array([pos[0], pos[1], pos[2]]) + s
+                    v.set_coord(t)
                 for p in self.modeler.planes:
                     p.correct_direction()
         self.repaint()
