@@ -7,28 +7,6 @@ import numpy as np
 pi_div_180 = np.pi / 180
 
 
-
-
-# def inner_product(a: QVector3D, b: QVector3D) -> float:
-#     product = a.toVector4D() * b.toVector4D()
-#     return product[0] + product[1] + product[2] + product[3]
-
-
-# def cross_product(a: QVector3D, b: QVector3D) -> QVector3D:
-#     x = a[1] * b[2] - b[1] * a[2]
-#     y = -(a[0] * b[2] - b[0] * a[2])
-#     z = a[0] * b[1] - b[0] * a[1]
-#     return QVector3D(x, y, z)
-
-
-# def triple_product(a: QVector3D, b: QVector3D, c: QVector3D) -> float:
-#     return inner_product(cross_product(a, b), c)
-
-
-# def normal_vector(org: QVector3D, v1: QVector3D, v2: QVector3D) -> QVector3D:
-#     return cross_product(v1 - org, v2 - org)
-
-
 def rotate(vector_as_x: QVector3D, vector_as_y: QVector3D, degree) -> 'tuple[QVector3D, QVector3D]':
     """
     vector_as_x와 vector_as_y를 포함하는 평면 상에서
@@ -44,21 +22,6 @@ def rotate(vector_as_x: QVector3D, vector_as_y: QVector3D, degree) -> 'tuple[QVe
     return temp_x_axis, temp_y_axis
 
 
-# def ray_to_plane(start: QVector3D, end: QVector3D, normal: QVector3D, point: QVector3D):
-#     """
-#     평면과 선분의 교차 여부 검사. 충돌했으면 충돌 좌표의 QVector3D객체 반환. 아니면 None 반환
-#
-#     start: 선분의 시작 점
-#     end: 선분의 끝 점
-#     normal: 평면의 노멀 벡터
-#     point: 평면 위의 한 점
-#     """
-#
-#     t = inner_product(normal, point - start) / inner_product(normal, end - start)
-#     if 0 <= t <= 1:
-#         return start + t * (end - start)
-
-
 def is_inner_line(v1: 'MeshVertex', v2: 'MeshVertex', p_set: 'set[VertexGroup]') -> bool:
     """두 정점 v1과 v2로 이루어진 선분이 면의 집합인 p_set 에서 내부에 위치했으면 True 반환. 아니며 False"""
     count = 0
@@ -66,18 +29,6 @@ def is_inner_line(v1: 'MeshVertex', v2: 'MeshVertex', p_set: 'set[VertexGroup]')
         if p in p_set and v2 in p:
             count += 1
     return count > 1
-
-
-# def get_inner_line(p1: 'VertexGroup', p2: 'VertexGroup') -> 'tuple[MeshVertex, MeshVertex]':
-#     """두 면에 공통으로 존재하는 선분을 MeshVertex 의 튜플로 반환"""
-#     count = 0
-#     intersection = []
-#     for v1 in p1:
-#         if v1 in p2:
-#             count += 1
-#             intersection.append(v1)
-#     if count == 2:
-#         return tuple(intersection)
 
 
 def catmull_clark(mesh: 'Mesh') -> 'Mesh':
@@ -396,9 +347,6 @@ class Mesh(WorldObject):
     def planes_count(self):
         return len(self.planes)
 
-    def planes_count(self):
-        return len(self.planes)
-
     def get_coord(self, index: int) -> 'np.array[x, y, z]':
         return self.vertex_coordinates[:3, index]
 
@@ -502,7 +450,7 @@ class Mesh(WorldObject):
             edge1 = plane[1] - plane[0]
             edge2 = plane[2] - plane[0]
 
-            p0_to_start = start - plane[0].get_coord()
+            p0_to_start = start_vector - plane[0].get_coord()
 
             matrix_a = np.array([edge1, edge2, -ray]).transpose()
             matrix_b = p0_to_start.transpose()
@@ -526,7 +474,6 @@ class Mesh(WorldObject):
         side_planes = set()
         cover_planes = set()
         pillars = dict()
-        v_set = set()
 
         for p in p_set:
             for v in p:

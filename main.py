@@ -5,8 +5,8 @@
 from OpenGL.GL import *
 from OpenGL.GLU import *
 
-from PyQt5.QtCore import Qt, QSize, QPoint
-from PyQt5.QtGui import QMouseEvent, QKeyEvent, QVector3D, QCursor, QPainter
+from PyQt5.QtCore import Qt, QSize
+from PyQt5.QtGui import QMouseEvent, QKeyEvent, QVector3D, QCursor
 from PyQt5.QtWidgets import QApplication, QMainWindow
 from PyQt5.QtOpenGL import QGLWidget
 
@@ -287,7 +287,7 @@ class GLWidget(QGLWidget):
             for v in p:
                 avg = avg + v.get_coord()
                 glColor3f(1, 1, 0)
-                coord = v.get_coord();
+                coord = v.get_coord()
                 glVertex3f(coord[0], coord[1], coord[2])
             avg = avg / 3
             glColor3f(0, 0, 1)
@@ -334,8 +334,7 @@ class GLWidget(QGLWidget):
 
         # 모든 면에 대해 충돌 검사. 충돌한 면 중에서 사용자의 시점에서 제일 가까운 면 선택
         for plane, collision_point in generator:
-            depth = np.sum((np.array([self.cam.pos.x(), self.cam.pos.y(), self.cam.pos.z()])
-                    - collision_point) ** 2)
+            depth = np.sum((np.array([self.cam.pos.x(), self.cam.pos.y(), self.cam.pos.z()]) - collision_point) ** 2)
             if depth < plane_to_camera:
                 plane_to_camera = depth
                 selected_plane = plane
@@ -443,7 +442,7 @@ class GLWidget(QGLWidget):
                     lock.acquire()
                     p.color = self.widget_state.palette
                     lock.release()
-            elif e.button() == Qt.MiddleButton: # 모든 면 선택
+            elif e.button() == Qt.MiddleButton:  # 모든 면 선택
                 p = self.get_plane(mx, my)
                 p_set = set()
                 p_set.add(p)
