@@ -335,6 +335,23 @@ class MeshVertex:
     def get_coord(self) -> 'np.array[x, y, z]':
         return self.owner.get_coord(self.vertex_id)
 
+    def set_coord(self, new_coord):
+        self.owner.set_coord(self.vertex_id, new_coord)
+
+    def set_coord_column(self, axis, value):
+        coord = self.owner.get_coord(self.vertex_id)
+        coord[axis] = value
+        self.owner.set_coord(self.vertex_id, coord)
+
+    def set_z(self, z):
+        self.set_coord(2, z)
+
+    def set_x(self, x):
+        self.set_coord(0, x)
+
+    def set_y(self, y):
+        self.set_coord(1, y)
+
     def __hash__(self):
         return id(self)
 
@@ -384,6 +401,9 @@ class Mesh(WorldObject):
 
     def get_coord(self, index: int) -> 'np.array[x, y, z]':
         return self.vertex_coordinates[:3, index]
+
+    def set_coord(self, index: int, new_coord: 'list[x, y, z]'):
+        self.vertex_coordinates[:, index] = np.array(new_coord[0], new_coord[1], new_coord[2], 1)
 
     def append_vertex(self, coordinates: 'list[list, ...]') -> 'list[MeshVertex, ...]':
         """
