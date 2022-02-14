@@ -7,27 +7,26 @@ import numpy as np
 pi_div_180 = np.pi / 180
 
 
-#TODO
-#Review, test, modify global functions
-
-def inner_product(a: QVector3D, b: QVector3D) -> float:
-    product = a.toVector4D() * b.toVector4D()
-    return product[0] + product[1] + product[2] + product[3]
 
 
-def cross_product(a: QVector3D, b: QVector3D) -> QVector3D:
-    x = a[1] * b[2] - b[1] * a[2]
-    y = -(a[0] * b[2] - b[0] * a[2])
-    z = a[0] * b[1] - b[0] * a[1]
-    return QVector3D(x, y, z)
+# def inner_product(a: QVector3D, b: QVector3D) -> float:
+#     product = a.toVector4D() * b.toVector4D()
+#     return product[0] + product[1] + product[2] + product[3]
 
 
-def triple_product(a: QVector3D, b: QVector3D, c: QVector3D) -> float:
-    return inner_product(cross_product(a, b), c)
+# def cross_product(a: QVector3D, b: QVector3D) -> QVector3D:
+#     x = a[1] * b[2] - b[1] * a[2]
+#     y = -(a[0] * b[2] - b[0] * a[2])
+#     z = a[0] * b[1] - b[0] * a[1]
+#     return QVector3D(x, y, z)
 
 
-def normal_vector(org: QVector3D, v1: QVector3D, v2: QVector3D) -> QVector3D:
-    return cross_product(v1 - org, v2 - org)
+# def triple_product(a: QVector3D, b: QVector3D, c: QVector3D) -> float:
+#     return inner_product(cross_product(a, b), c)
+
+
+# def normal_vector(org: QVector3D, v1: QVector3D, v2: QVector3D) -> QVector3D:
+#     return cross_product(v1 - org, v2 - org)
 
 
 def rotate(vector_as_x: QVector3D, vector_as_y: QVector3D, degree) -> 'tuple[QVector3D, QVector3D]':
@@ -45,19 +44,19 @@ def rotate(vector_as_x: QVector3D, vector_as_y: QVector3D, degree) -> 'tuple[QVe
     return temp_x_axis, temp_y_axis
 
 
-def ray_to_plane(start: QVector3D, end: QVector3D, normal: QVector3D, point: QVector3D):
-    """
-    평면과 선분의 교차 여부 검사. 충돌했으면 충돌 좌표의 QVector3D객체 반환. 아니면 None 반환
-    
-    start: 선분의 시작 점
-    end: 선분의 끝 점
-    normal: 평면의 노멀 벡터
-    point: 평면 위의 한 점
-    """
-
-    t = inner_product(normal, point - start) / inner_product(normal, end - start)
-    if 0 <= t <= 1:
-        return start + t * (end - start)
+# def ray_to_plane(start: QVector3D, end: QVector3D, normal: QVector3D, point: QVector3D):
+#     """
+#     평면과 선분의 교차 여부 검사. 충돌했으면 충돌 좌표의 QVector3D객체 반환. 아니면 None 반환
+#
+#     start: 선분의 시작 점
+#     end: 선분의 끝 점
+#     normal: 평면의 노멀 벡터
+#     point: 평면 위의 한 점
+#     """
+#
+#     t = inner_product(normal, point - start) / inner_product(normal, end - start)
+#     if 0 <= t <= 1:
+#         return start + t * (end - start)
 
 
 def is_inner_line(v1: 'MeshVertex', v2: 'MeshVertex', p_set: 'set[VertexGroup]') -> bool:
@@ -69,16 +68,16 @@ def is_inner_line(v1: 'MeshVertex', v2: 'MeshVertex', p_set: 'set[VertexGroup]')
     return count > 1
 
 
-def get_inner_line(p1: 'VertexGroup', p2: 'VertexGroup') -> 'tuple[MeshVertex, MeshVertex]':
-    """두 면에 공통으로 존재하는 선분을 MeshVertex 의 튜플로 반환"""
-    count = 0
-    intersection = []
-    for v1 in p1:
-        if v1 in p2:
-            count += 1
-            intersection.append(v1)
-    if count == 2:
-        return tuple(intersection)
+# def get_inner_line(p1: 'VertexGroup', p2: 'VertexGroup') -> 'tuple[MeshVertex, MeshVertex]':
+#     """두 면에 공통으로 존재하는 선분을 MeshVertex 의 튜플로 반환"""
+#     count = 0
+#     intersection = []
+#     for v1 in p1:
+#         if v1 in p2:
+#             count += 1
+#             intersection.append(v1)
+#     if count == 2:
+#         return tuple(intersection)
 
 
 def catmull_clark(mesh: 'Mesh') -> 'Mesh':
@@ -95,54 +94,54 @@ def catmull_clark(mesh: 'Mesh') -> 'Mesh':
     # new_points: dictionary. Key 는 MeshVertex, Value 는 새로 옮겨질 정점의 좌표
     face_points = dict()
     for mesh_plane in mesh.planes:
-        f = QVector3D(0, 0, 0)
+        f = np.array([0, 0, 0])
         for mesh_vertex in mesh_plane:
-            f += mesh_vertex
-        f /= len(mesh_plane)
-        face_points[mesh_plane] = new_mesh.append_vertex(f.x(), f.y(), f.z())
+            f += mesh_vertex.get_coord()
+        f = f / len(mesh_plane)
+        face_points[mesh_plane] = new_mesh.append_vertex([f[0], f[1], f[2]])[0]
 
     new_points = dict()
     edge_points = dict()
     for mesh_vertex in mesh.vertices:
-        edge_avg = QVector3D(0, 0, 0)  # mesh_vertex 에 인접한 선분의 R 점들의 평균
-        face_avg = QVector3D(0, 0, 0)  # mesh_vertex 에 인접한 면의 F 점들의 평균
+        edge_avg = np.array([0, 0, 0])  # mesh_vertex 에 인접한 선분의 R 점들의 평균
+        face_avg = np.array([0, 0, 0])  # mesh_vertex 에 인접한 면의 F 점들의 평균
         n = len(mesh_vertex.adjacent_plane)
         opposites = dict()  # key : 반대편 정점, value : mesh_vertex 와 key 를 양 끝으로 하는 선분에 인접한 면의 집합
         for mesh_plane in mesh_vertex.adjacent_plane:
-            face_avg += face_points[mesh_plane]
+            face_avg += face_points[mesh_plane].get_coord()
             op = mesh_plane.opposite(mesh_vertex)
             for op_v in op:
                 if op_v in opposites:
                     opposites[op_v].add(mesh_plane)
                 else:
                     opposites[op_v] = set([mesh_plane])
-        face_avg /= len(mesh_vertex.adjacent_plane)
+        face_avg = face_avg / len(mesh_vertex.adjacent_plane)
 
         for op_v in opposites:
             if (mesh_vertex, op_v) in edge_points:
-                s = edge_points[(mesh_vertex, op_v)]
+                s = edge_points[(mesh_vertex, op_v)].get_coord()
                 edge_avg += s
                 continue
             else:
-                s = mesh_vertex + op_v
+                s = mesh_vertex.get_coord() + op_v.get_coord()
                 for mesh_plane in opposites[op_v]:
                     s += face_points[mesh_plane]
-                s /= 2 + len(opposites[op_v])
+                s = s / (2 + len(opposites[op_v]))
             edge_avg += s
 
-            nv = new_mesh.append_vertex(s.x(), s.y(), s.z())
+            nv = new_mesh.append_vertex([s[0], s[1], s[2]])[0]
             edge_points[(mesh_vertex, op_v)] = nv
             edge_points[(op_v, mesh_vertex)] = nv
 
-        edge_avg /= len(opposites)  
+        edge_avg = edge_avg / len(opposites)
 
         if n >= 3:
-            nv = (face_avg + 2 * edge_avg + (n - 3) * mesh_vertex) / n
+            nv = (face_avg + 2 * edge_avg + (n - 3) * mesh_vertex.get_coord()) / n
         elif n > 0:
-            nv = (face_avg + edge_avg + mesh_vertex) / 3
+            nv = (face_avg + edge_avg + mesh_vertex.get_coord()) / 3
         else:
             nv = mesh_vertex
-        new_points[mesh_vertex] = new_mesh.append_vertex(nv.x(), nv.y(), nv.z())
+        new_points[mesh_vertex] = new_mesh.append_vertex([nv[0], nv[1], nv[2]])[0]
     
     # 위에서 만들어진 정점들을 연결하여 면 구성 및 Mesh 생성
     for mesh_plane in mesh.planes:
@@ -206,8 +205,6 @@ class WorldObject:
         pass
 
 
-#TODO
-#Review and test VertexGroup
 class VertexGroup:
     """
     3D 물체에서 면을 정의함
@@ -345,8 +342,6 @@ class MeshVertex:
         return self.get_coord() - other.get_coord()
 
 
-#TODO
-#Test Mesh.copy_planes() after modify VertexGroup class
 class Mesh(WorldObject):
     """
     3D 물체를 정의함

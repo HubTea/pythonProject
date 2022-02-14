@@ -217,20 +217,20 @@ class GLWidget(QGLWidget):
         self.modeler.polygon_mode = (GL_FRONT_AND_BACK, GL_LINE)
         m = self.modeler
 
-        v1 = m.append_vertex(0, 0, 0)
-        v2 = m.append_vertex(0.5, 0, 0)
-        v3 = m.append_vertex(0.5, 0.5, 0)
-        v4 = m.append_vertex(0, 0.5, 0)
-        v5 = m.append_vertex(0.25, 0.25, 0)
-        m.make_plane(v1, v2, v5, QVector3D(0, 0, 1))
-        m.make_plane(v2, v3, v5, QVector3D(0, 0, 1))
-        m.make_plane(v3, v4, v5, QVector3D(0, 0, 1))
-        m.make_plane(v4, v1, v5, QVector3D(0, 0, 1))
+        v1 = m.append_vertex([[0, 0, 0]])[0]
+        v2 = m.append_vertex([[0.5, 0, 0]])[0]
+        v3 = m.append_vertex([[0.5, 0.5, 0]])[0]
+        v4 = m.append_vertex([[0, 0.5, 0]])[0]
+        v5 = m.append_vertex([[0.25, 0.25, 0]])[0]
+        m.make_plane(v1, v2, v5, np.array([0, 0, 1]))
+        m.make_plane(v2, v3, v5, np.array([0, 0, 1]))
+        m.make_plane(v3, v4, v5, np.array([0, 0, 1]))
+        m.make_plane(v4, v1, v5, np.array([0, 0, 1]))
 
         cv, sd = self.modeler.copy_planes(set(self.modeler.planes))
         for p in cv:
             for v in p:
-                v.setZ(-1)
+                v.set_z(-1)
             p.inverse_direction()
         for p in self.modeler.planes:
             p.correct_normal()
