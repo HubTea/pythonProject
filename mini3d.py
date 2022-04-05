@@ -324,8 +324,13 @@ class Mesh(WorldObject):
     def __init__(self):
         WorldObject.__init__(self)
         self.vertices = []
-        self.vertex_coordinates = np.ndarray(shape=(4, 0), dtype=np.float)
+        self.vertex_coordinates = np.ndarray(shape=(4, 0), dtype='float32')
+        self.vertex_buffer = np.array([], dtype='float32')
+
         self.planes = []
+        self.vertex_index_buffer = np.array([], dtype='int32')
+        self.color_buffer = np.array([], dtype='float32')
+        self.normal_buffer = np.array([], dtype='float32')
 
         self.collision_check = True
         self.catmull_clark_level = 0
@@ -335,10 +340,19 @@ class Mesh(WorldObject):
     def is_valid(self):
         if len(self.vertices) != self.vertex_coordinates.shape[1]:
             return False
-        for (i, v) in enumerate(self.vertices):
+
+        for (i, vertex) in enumerate(self.vertices):
             for c in range(3):
-                if v.get_coord()[c] != self.vertex_coordinates[:, i][c]:
+                if vertex.get_coord()[c] != self.vertex_coordinates[:, i][c] or self.vertex_coordinates[:, i][c] != self.vertex_buffer[3 * i + c]:
                     return False
+
+        for i, plane in enumerate(self.planes):
+            for offset in range(3):
+                if self.vertex_index_buffer[3 * i + offset] != plane[offset].vertex_id:
+                    return False
+                for column in range(3):
+                    if self.normal_buffer[3 * (3 * i + offset) + column] - plane.calc_normal()[column] > 0.00001:
+                        return False
         return True
 
     def vertices_count(self):
@@ -353,6 +367,21 @@ class Mesh(WorldObject):
     def set_coord(self, index: int, new_coord: 'list[x, y, z]'):
         self.vertex_coordinates[:, index] = np.array([new_coord[0], new_coord[1], new_coord[2], 1])
 
+        for offset in range(3):
+            self.vertex_buffer[3 * index + offset] = new_coord[offset]
+
+        for plane in self.vertices[index].adjacent_plane:
+            new_normal_vector = plane.calc_normal()
+            plane_index = self.get_plane_index(plane)
+            for offset in range(3):
+                self.normal_buffer[3 * plane_index + offset] = new_normal_vector[offset]
+
+    def get_plane_index(self, target_plane):
+        for index, plane in enumerate(self.planes):
+            if plane is target_plane:
+                return index
+        return -1
+
     def append_vertex(self, coordinates: 'list[list, ...]') -> 'list[MeshVertex, ...]':
         """
         주어진 좌표의 정점 추가
@@ -366,11 +395,14 @@ class Mesh(WorldObject):
         expanded_coord = [self.vertex_coordinates]
         for coord in coordinates:
             expanded_coord.append((coord[0], coord[1], coord[2], 1))
-
         self.vertex_coordinates = np.column_stack(expanded_coord)
+
+        if len(coordinates) != 0:
+            self.vertex_buffer = np.concatenate([self.vertex_buffer, np.concatenate(coordinates)])
 
         for vertex_id in range(current_len, self.vertices_count()):
             self.vertices.append(MeshVertex(self, vertex_id))
+
         return self.vertices[current_len:self.vertices_count()]
 
     def delete_vertex(self, vertex: MeshVertex):
@@ -379,23 +411,37 @@ class Mesh(WorldObject):
             if v is vertex:
                 self.vertices[i], self.vertices[-1] = self.vertices[-1], self.vertices[i]
                 self.vertices[i].set_id(i)
+                for plane in self.vertices[i].adjacent_plane:
+                    plane_index = self.get_plane_index(plane)
+                    for offset in range(3):
+                        if plane[offset] is self.vertices[i]:
+                            self.vertex_index_buffer[3 * plane_index + offset] = i
+
                 self.vertices.pop()
 
                 last = self.vertices_count() - 1
                 self.vertex_coordinates[:, i] = self.vertex_coordinates[:, last]
                 self.vertex_coordinates = self.vertex_coordinates[:, :last]
 
-                for plane in v.adjacent_plane:
-                    for adj_vertex in plane:
-                        if adj_vertex is not v:
-                            adj_vertex.pop_plane(plane)
+                for offset in range(3):
+                    self.vertex_buffer[3 * i + offset] = self.vertex_buffer[3 * last + offset]
+                self.vertex_buffer.resize(3 * last, refcheck=False)
 
-                adj_plane_seq = v.adjacent_plane[:]
-                for plane in adj_plane_seq:
-                    v.pop_plane(plane)
-                    idx = self.planes.index(plane)
-                    self.planes[idx], self.planes[-1] = self.planes[-1], self.planes[idx]
-                    self.planes.pop()
+                # for plane in v.adjacent_plane:
+                #     for adj_vertex in plane:
+                #         if adj_vertex is not v:
+                #             adj_vertex.pop_plane(plane)
+                #
+                # adj_plane_seq = v.adjacent_plane[:]
+                # for plane in adj_plane_seq:
+                #     v.pop_plane(plane)
+                #     idx = self.planes.index(plane)
+                #     self.planes[idx], self.planes[-1] = self.planes[-1], self.planes[idx]
+                #     self.planes.pop()
+
+                adj_plane_deepcopy = v.adjacent_plane[:]
+                for plane in adj_plane_deepcopy:
+                    self.delete_plane(plane)
 
     def delete_plane(self, plane: VertexGroup):
         """
@@ -404,8 +450,18 @@ class Mesh(WorldObject):
         """
         for (i, p) in enumerate(self.planes):
             if p is plane:
+                plane_count = len(self.planes)
                 self.planes[i], self.planes[-1] = self.planes[-1], self.planes[i]
                 self.planes.pop()
+
+                for offset in range(3):
+                    for column in range(3):
+                        self.normal_buffer[9 * i + 3 * offset + column] = self.normal_buffer[9 * (plane_count - 1) + 3 * offset + column]
+                        self.color_buffer[9 * i + 3 * offset + column] = self.color_buffer[9 * (plane_count - 1) + 3 * offset + column]
+                    self.vertex_index_buffer[3 * i + offset] = self.vertex_index_buffer[3 * (plane_count - 1) + offset]
+                self.vertex_index_buffer = self.vertex_index_buffer[:3 * (plane_count - 1)]
+                self.normal_buffer = self.normal_buffer[:9 * (plane_count - 1)]
+                self.color_buffer = self.color_buffer[:9 * (plane_count - 1)]
 
                 for v in plane:
                     v.pop_plane(plane)
@@ -415,6 +471,8 @@ class Mesh(WorldObject):
         plane = VertexGroup(v1, v2, v3)
         plane.owner = self
 
+        previous_plane_count = len(self.planes)
+
         self.planes.append(plane)
         v1.push_plane(plane)
         v2.push_plane(plane)
@@ -423,6 +481,12 @@ class Mesh(WorldObject):
         if direction is not None:
             plane.set_direction(direction)
             plane.correct_normal()
+
+        self.vertex_index_buffer = np.concatenate([self.vertex_index_buffer, np.array([vertex.vertex_id for vertex in plane], dtype='int32')])
+        self.color_buffer = np.concatenate([self.color_buffer, np.array([0] * 9, dtype='float32')])
+
+        normal_vector = plane.calc_normal()
+        self.normal_buffer = np.concatenate([self.normal_buffer, np.array([column for column in normal_vector] * 3, dtype='float32')])
         return plane
 
     def make_plane_with_latest(self, direction=None) -> VertexGroup:
