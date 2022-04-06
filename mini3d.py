@@ -331,6 +331,7 @@ class Mesh(WorldObject):
         self.vertex_index_buffer = np.array([], dtype='int32')
         self.color_buffer = np.array([], dtype='float32')
         self.normal_buffer = np.array([], dtype='float32')
+        self.vertex_coord_buffer = np.array([], dtype='float32')
 
         self.collision_check = True
         self.catmull_clark_level = 0
@@ -352,6 +353,8 @@ class Mesh(WorldObject):
                     return False
                 for column in range(3):
                     if self.normal_buffer[3 * (3 * i + offset) + column] - plane.calc_normal()[column] > 0.00001:
+                        return False
+                    if self.vertex_coord_buffer[9 * i + 3 * offset + column] != plane[offset].get_coord()[column]:
                         return False
         return True
 
@@ -375,6 +378,11 @@ class Mesh(WorldObject):
             plane_index = self.get_plane_index(plane)
             for offset in range(3):
                 self.normal_buffer[3 * plane_index + offset] = new_normal_vector[offset]
+
+            for i, vertex in enumerate(plane):
+                if self.vertices[index] is vertex:
+                    for offset in range(3):
+                        self.vertex_coord_buffer[9 * plane_index + 3 * i + offset] = vertex.get_coord()[offset]
 
     def get_plane_index(self, target_plane):
         for index, plane in enumerate(self.planes):
@@ -458,10 +466,12 @@ class Mesh(WorldObject):
                     for column in range(3):
                         self.normal_buffer[9 * i + 3 * offset + column] = self.normal_buffer[9 * (plane_count - 1) + 3 * offset + column]
                         self.color_buffer[9 * i + 3 * offset + column] = self.color_buffer[9 * (plane_count - 1) + 3 * offset + column]
+                        self.vertex_coord_buffer[9 * i + 3 * offset + column] = self.vertex_coord_buffer[9 * (plane_count - 1) + 3 * offset + column]
                     self.vertex_index_buffer[3 * i + offset] = self.vertex_index_buffer[3 * (plane_count - 1) + offset]
                 self.vertex_index_buffer = self.vertex_index_buffer[:3 * (plane_count - 1)]
                 self.normal_buffer = self.normal_buffer[:9 * (plane_count - 1)]
                 self.color_buffer = self.color_buffer[:9 * (plane_count - 1)]
+                self.vertex_coord_buffer = self.vertex_coord_buffer[:9 * (plane_count - 1)]
 
                 for v in plane:
                     v.pop_plane(plane)
@@ -484,6 +494,7 @@ class Mesh(WorldObject):
 
         self.vertex_index_buffer = np.concatenate([self.vertex_index_buffer, np.array([vertex.vertex_id for vertex in plane], dtype='int32')])
         self.color_buffer = np.concatenate([self.color_buffer, np.array([0] * 9, dtype='float32')])
+        self.vertex_coord_buffer = np.concatenate([self.vertex_coord_buffer] + [vertex.get_coord() for vertex in plane])
 
         normal_vector = plane.calc_normal()
         self.normal_buffer = np.concatenate([self.normal_buffer, np.array([column for column in normal_vector] * 3, dtype='float32')])
@@ -589,17 +600,13 @@ class Mesh(WorldObject):
         glPolygonMode(*self.polygon_mode)
         glLineWidth(1)
 
-        glBegin(GL_TRIANGLES)
-        glColor3f(1, 1, 1)
-        for plane in self.planes:
-            glColor3f(plane.color[0] / 255, plane.color[1] / 255, plane.color[2] / 255)
-            for vertex in plane:
-                n = plane.calc_normal()
-                n = n / np.sqrt(np.sum(n ** 2))
-                glNormal3f(n[0], n[1], n[2])
-                coord = vertex.get_coord()
-                glVertex3f(coord[0], coord[1], coord[2])
-        glEnd()
+        vertex_buffer_object = glGenBuffers(1)
+        glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer_object)
+        glBufferData(GL_ARRAY_BUFFER, self.vertex_coord_buffer, GL_STATIC_DRAW)
+
+        glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer_object)
+        glVertexPointer(3, GL_DOUBLE, 0, None)
+        glDrawArrays(GL_TRIANGLES, 0, 3 * self.planes_count())
 
     def save(self, path):
         """Mesh 를 파일로 저장"""

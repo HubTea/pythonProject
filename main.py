@@ -241,8 +241,8 @@ class GLWidget(QGLWidget):
     def initializeGL(self):
         glClearColor(0, 0, 0, 0)
         glEnable(GL_DEPTH_TEST)
-        glEnable(GL_CULL_FACE)
-        glFrontFace(GL_CCW)
+        # glEnable(GL_CULL_FACE)
+        # glFrontFace(GL_CCW)
         glShadeModel(GL_FLAT)
 
         glEnable(GL_LIGHTING)
@@ -250,6 +250,8 @@ class GLWidget(QGLWidget):
         glEnable(GL_COLOR_MATERIAL)
         glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT)
         glColorMaterial(GL_FRONT_AND_BACK, GL_DIFFUSE)
+
+        glEnableClientState(GL_VERTEX_ARRAY)
 
     def paintGL(self):
         self._draw()
